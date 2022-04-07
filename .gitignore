@@ -1,0 +1,14 @@
+CMakeFiles
+CMakeCache.txt
+examples/Makefile
+*.cmake
+*.a
+*.o
+*.log
+*.orig
+*.rej
+tests
+tuya_*
+simple_*
+*.json
+
