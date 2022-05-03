@@ -15,6 +15,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(CXX_EXTENSIONS NO)
 endif()
 
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -Wall")
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/..)
@@ -62,7 +63,7 @@ ENDIF(JSONCPP_FOUND)
 foreach(demo ${TUYA_demo_SRCS})
   get_filename_component(exefile ${demo} NAME_WE)
   add_executable(${exefile} ${demo})
-  target_link_libraries(${exefile} tuyapp ${ZLIB_LIBRARIES})
+  target_link_libraries(${exefile} tuyapp ${ZLIB_LIBRARIES} pthread)
   message(STATUS "Created make target ${exefile}")
 endforeach(demo)
 

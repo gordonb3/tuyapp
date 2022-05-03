@@ -1,6 +1,6 @@
 CMakeFiles
 CMakeCache.txt
-examples/Makefile
+**/Makefile
 *.cmake
 *.a
 *.o
@@ -11,4 +11,6 @@ tests
 tuya_*
 simple_*
 *.json
-
+!*.cpp
+!*.hpp
+!*.h

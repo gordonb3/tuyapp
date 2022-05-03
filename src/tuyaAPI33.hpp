@@ -41,7 +41,7 @@
 #define TUYA_WEATHER_DATA_CMD 33
 #define TUYA_STATE_UPLOAD_SYN_CMD 34
 #define TUYA_STATE_UPLOAD_SYN_RECV_CMD 35
-#define TUYA_HEAT_BEAT_STOP 37
+#define TUYA_HEART_BEAT_STOP 37
 #define TUYA_STREAM_TRANS_CMD 38
 #define TUYA_GET_WIFI_STATUS_CMD 43
 #define TUYA_WIFI_CONNECT_TEST_CMD 44
@@ -86,6 +86,7 @@ public:
 	bool ConnectToDevice(const std::string &hostname, const int portnumber, const uint8_t retries = 5);
 	int send(unsigned char* buffer, const unsigned int size);
 	int receive(unsigned char* buffer, const unsigned int maxsize, const unsigned int minsize = 28);
+	void disconnect();
 
 
 private:
