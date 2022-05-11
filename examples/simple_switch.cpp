@@ -1,5 +1,15 @@
-//#define DEBUG
+/*
+ *  Simple switch example for local Tuya client
+ *
+ *  Copyright 2022 - gordonb3 https://github.com/gordonb3/tuyapp
+ *
+ *  Licensed under GNU General Public License 3.0 or later.
+ *  Some rights reserved. See COPYING, AUTHORS.
+ *
+ *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
+ */
 
+//#define DEBUG
 
 #define MAX_BUFFER_SIZE 1024
 #define TUYA_COMMAND_PORT 6668

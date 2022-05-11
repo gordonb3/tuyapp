@@ -1,7 +1,7 @@
 /*
- * client interface for local Tuya device access
+ *  Client interface for local Tuya device access
  *
- *  Copyright 2017-2020 - gordonb3 https://github.com/gordonb3/tuyapp
+ *  Copyright 2022 - gordonb3 https://github.com/gordonb3/tuyapp
  *
  *  Licensed under GNU General Public License 3.0 or later.
  *  Some rights reserved. See COPYING, AUTHORS.
@@ -90,7 +90,7 @@ public:
 
 
 private:
-	int sockfd;
+	int m_sockfd;
 	struct sockaddr_in serv_addr;
 	struct hostent *server;
 
@@ -100,3 +100,4 @@ private:
 };
 
 #endif
+
