@@ -194,7 +194,7 @@ bool tuyaAPI33::ConnectToDevice(const std::string &hostname, const int portnumbe
 
 int tuyaAPI33::send(unsigned char* buffer, const unsigned int size)
 {
-	return write(m_sockfd, buffer, size + sizeof(MESSAGE_SEND_HEADER) + sizeof(MESSAGE_SEND_TRAILER));
+	return write(m_sockfd, buffer, size);
 }
 
 int tuyaAPI33::receive(unsigned char* buffer, const unsigned int maxsize, const unsigned int minsize)
