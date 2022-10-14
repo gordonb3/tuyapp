@@ -146,7 +146,7 @@ bool monitor(std::string devicename)
 
 	while(true)
 	{
-		payload = "{\"dpId\":[19]}";
+		payload = "{\"dpId\":[19,20]}";
 		payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, payload, device_key);
 		numbytes = tuyaclient->send(message_buffer, payload_len);
 		if (numbytes < 0)
@@ -178,14 +178,29 @@ bool monitor(std::string devicename)
 			unsigned long newtimeval = jStatus["t"].asUInt64();
 			if (timeval)
 			{
-				unsigned int timediff = (int)(newtimeval - timeval);
-				unsigned int actual = jStatus["dps"]["19"].asUInt();
-				usage += (float)((actual * timediff) / (3600.0 * ENERGY_DIVISOR));
+				std::stringstream voltreport("");
+				if (jStatus["dps"].isMember("20"))
+				{
+					unsigned int decivolts = jStatus["dps"]["20"].asUInt();
+					float volts = (float)(decivolts)/10;
+					voltreport << ",\"volts\":" << volts;
+				}
 				writeprotect.lock();
-				std::cout << "{\"name\":\"" << devicename << "\",\"power\":" << (actual + 0.0)/ENERGY_DIVISOR << ",\"usage\":" <<  (int)std::round(usage)<< ",\"rawusage\":" <<  usage <<  ",\"t1\":" <<  timeval <<  ",\"t2\":" << newtimeval  <<  "}\n";
+				std::cout << "{\"name\":\"" << devicename;
+				if (jStatus["dps"].isMember("19"))
+				{
+					unsigned int timediff = (int)(newtimeval - timeval);
+					unsigned int actual = jStatus["dps"]["19"].asUInt();
+					usage += (float)(actual * timediff) / (3600.0 * ENERGY_DIVISOR);
+					std::cout << "\",\"power\":" << (float)(actual + 0.0)/ENERGY_DIVISOR << ",\"usage\":" <<  (int)std::round(usage)<< ",\"rawusage\":" << voltreport.str() << ",\"t1\":" <<  timeval <<  ",\"t2\":" << newtimeval  <<  "}\n";
+					timeval = newtimeval;
+				}
+				else
+					std::cout << voltreport.str() <<  "}\n";
 				writeprotect.unlock();
 			}
-			timeval = newtimeval;
+			else
+				timeval = newtimeval;
 		}
 	}
 
