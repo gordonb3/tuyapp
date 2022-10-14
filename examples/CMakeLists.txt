@@ -25,7 +25,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/..)
 
 # main include dirs
 include_directories(${CMAKE_SOURCE_DIR}/../src)
-include_directories(${CMAKE_SOURCE_DIR}/../include)
 
 
 ## Sources
@@ -35,7 +34,6 @@ file(GLOB TUYA_demo_SRCS *.cpp)
 
 
 # Main library
-file(GLOB_RECURSE include_SRCS ../include/*.cpp)
 file(GLOB_RECURSE TUYA_client_SRCS ../src/*.cpp)
 add_library(tuyapp STATIC ${TUYA_client_SRCS} ${include_SRCS})
 
@@ -58,12 +56,17 @@ ELSE(JSONCPP_FOUND)
   MESSAGE(FATAL_ERROR "JSONCPP not found on your system! try 'sudo apt-get install jsoncpp-dev'")
 ENDIF(JSONCPP_FOUND)
 
+find_package(OpenSSL REQUIRED)
+IF(OPENSSL_FOUND)
+  message(STATUS "OPENSSL library found at: ${OPENSSL_LIBRARIES}")
+  include_directories(${OPENSSL_INCLUDE_DIR})
+ENDIF()
 
 
 foreach(demo ${TUYA_demo_SRCS})
   get_filename_component(exefile ${demo} NAME_WE)
   add_executable(${exefile} ${demo})
-  target_link_libraries(${exefile} tuyapp ${ZLIB_LIBRARIES} pthread)
+  target_link_libraries(${exefile} tuyapp ${ZLIB_LIBRARIES} pthread ${OPENSSL_LIBRARIES})
   message(STATUS "Created make target ${exefile}")
 endforeach(demo)
 

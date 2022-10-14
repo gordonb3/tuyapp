@@ -9,16 +9,19 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
-//#define DEBUG
 #define SOCKET_TIMEOUT_SECS 5
 
 #include "tuyaAPI33.hpp"
-#include "AES.h"
 #include <netdb.h>
 #include <zlib.h>
 #include <sstream>
 #include <thread>
 #include <chrono>
+#include <cstring>
+
+#include <openssl/evp.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #ifdef DEBUG
 #include <iostream>
@@ -56,13 +59,26 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, st
 	std::cout << "\n";
 #endif
 
-	AES aes(AESKeyLength::AES_128);
-	unsigned char *out = aes.EncryptECB((unsigned char*)payload.c_str(), payload_len, (unsigned char*)encryption_key.c_str());
+	unsigned char* encryptedpayload = new unsigned char[payload_len + 16];
+	memset(encryptedpayload, 0, payload_len + 16);
+	int encryptedsize = 0;
+
+	try
+	{
+		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
+		EVP_EncryptUpdate(ctx, encryptedpayload, &encryptedsize, (unsigned char*)payload.c_str(), payload_len);
+		EVP_CIPHER_CTX_free(ctx);
+	}
+	catch (const std::exception& e)
+	{
+		return -1;
+	}
 
 #ifdef DEBUG
 	std::cout << "dbg: encrypted payload: ";
-	for(int i=0; i<payload_len; ++i)
-		printf("%.2x", (uint8_t)out[i]);
+	for(int i=0; i<encryptedsize; ++i)
+		printf("%.2x", (uint8_t)encryptedpayload[i]);
 	std::cout << "\n";
 #endif
 
@@ -75,7 +91,7 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, st
 		bcopy(PROTOCOL_33_HEADER, (char*)&buffer[payload_pos], sizeof(PROTOCOL_33_HEADER));
 		payload_pos += sizeof(PROTOCOL_33_HEADER);
 	}
-	bcopy(out, (char*)&buffer[payload_pos], payload_len);
+	bcopy(encryptedpayload, (char*)&buffer[payload_pos], payload_len);
 	bcopy(MESSAGE_SEND_TRAILER, (char*)&buffer[payload_pos + payload_len], sizeof(MESSAGE_SEND_TRAILER));
 
 	// insert command code in int32 @msg[8] (single byte value @msg[11])
@@ -108,11 +124,20 @@ std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 	std::string result;
 
 	int message_start = 0;
+
+#ifdef DEBUG
+	std::cout << "dbg: received message: ";
+	for(int i=0; i<(int)(size); ++i)
+		printf("%.2x", (uint8_t)buffer[i]);
+	std::cout << "\n";
+#endif
+
 	while (message_start < size)
 	{
 		unsigned char* message = &buffer[message_start];
 		unsigned char *encryptedpayload = &message[sizeof(MESSAGE_SEND_HEADER) + sizeof(int)];
 		int message_size = (int)((uint8_t)message[15] + ((uint8_t)message[14] << 8) + sizeof(MESSAGE_SEND_HEADER));
+
 
 		// verify crc
 		unsigned int crc_sent = ((uint8_t)message[message_size - 8] << 24) + ((uint8_t)message[message_size - 7] << 16) + ((uint8_t)message[message_size - 6] << 8) + (uint8_t)message[message_size - 5];
@@ -129,14 +154,28 @@ std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 				payload_len -= 15;
 			}
 
-			AES aes(AESKeyLength::AES_128);
-			unsigned char *out = aes.DecryptECB(encryptedpayload, payload_len, (unsigned char*)encryption_key.c_str());
-			// trim padding chars from decrypted payload
-			uint8_t padding = out[payload_len - 1];
-			if (padding <= 16)
-				out[payload_len - padding] = 0;
+			unsigned char* decryptedpayload = new unsigned char[payload_len + 16];
+			memset(decryptedpayload, 0, payload_len + 16);
+			int decryptedsize = 0;
 
-			result.append((char*)out);
+			try
+			{
+				EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+				EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
+				EVP_DecryptUpdate(ctx, decryptedpayload, &decryptedsize, encryptedpayload, payload_len);
+				EVP_CIPHER_CTX_free(ctx);
+
+				// trim padding chars from decrypted payload
+				uint8_t padding = decryptedpayload[payload_len - 1];
+				if (padding <= 16)
+					decryptedpayload[payload_len - padding] = 0;
+
+				result.append((char*)decryptedpayload);
+			}
+			catch (const std::exception& e)
+			{
+				result.append("{\"msg\":\"error decrypting payload\"}");
+			}
 		}
 		else
 			result.append("{\"msg\":\"crc error\"}");
