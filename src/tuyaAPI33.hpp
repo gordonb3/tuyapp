@@ -1,7 +1,7 @@
 /*
  *  Client interface for local Tuya device access
  *
- *  Copyright 2022 - gordonb3 https://github.com/gordonb3/tuyapp
+ *  Copyright 2022-2024 - gordonb3 https://github.com/gordonb3/tuyapp
  *
  *  Licensed under GNU General Public License 3.0 or later.
  *  Some rights reserved. See COPYING, AUTHORS.
@@ -65,8 +65,7 @@
 
 
 #include <string>
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include <cstdint>
 
 class tuyaAPI33
 {
@@ -91,12 +90,13 @@ public:
 
 private:
 	int m_sockfd;
-	struct sockaddr_in serv_addr;
-	struct hostent *server;
 
 	const uint8_t MESSAGE_SEND_HEADER[16] = {0,0,0x55,0xaa,0,0,0,0,0,0,0,0,0,0,0,0};
 	const uint8_t MESSAGE_SEND_TRAILER[8] = {0,0,0,0,0,0,0xaa,0x55};
 	const uint8_t PROTOCOL_33_HEADER[15] = {'3','.','3',0,0,0,0,0,0,0,0,0,0,0,0};
+
+	bool ResolveHost(const std::string &hostname, struct sockaddr_in& serv_addr);
+
 };
 
 #endif

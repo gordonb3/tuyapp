@@ -11,6 +11,7 @@ examples/CMakeCache.txt:
 	cmake -B examples -Sexamples
 
 clean:
+	rm -rf .lib
 	rm -rf examples/CMakeFiles
 	rm -f examples/CMakeCache.txt
 	rm -f examples/*.cmake
