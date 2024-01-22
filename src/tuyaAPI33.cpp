@@ -243,10 +243,14 @@ bool tuyaAPI33::ConnectToDevice(const std::string &hostname, const int portnumbe
 
 	serv_addr.sin_port = htons(portnumber);
 
-	struct timeval tv;
-	tv.tv_sec = SOCKET_TIMEOUT_SECS;
-	tv.tv_usec = 0;
-	setsockopt(m_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+#ifdef WIN32
+	int timeout = SOCKET_TIMEOUT_SECS * 1000;
+#else
+	struct timeval timeout;
+	timeout.tv_sec = SOCKET_TIMEOUT_SECS;
+	timeout.tv_usec = 0;
+#endif
+	setsockopt(m_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof timeout);
 
 	for (uint8_t i = 0; i < retries; i++)
 	{
