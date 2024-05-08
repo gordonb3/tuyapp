@@ -1,6 +1,6 @@
 # Tuyapp
 
-C++ hack to the Local Tuya API
+C++ client library for the Local Tuya API
 
 ## Description
 
@@ -15,4 +15,6 @@ There are several (simple) examples included in this project that show how the l
 ## Feedback Welcome!
 
 If you have any problems, questions or comments regarding this project, feel free to contact me! (gordon@bosvangennip.nl)
+
+[![Buy me a beer!](https://raw.githubusercontent.com/gordonb3/cache/master/Algemeen/Buy%20me%20a%20beer!.png)](https://www.paypal.com/donate/?hosted_button_id=USJR8BWKEAEAL)
 

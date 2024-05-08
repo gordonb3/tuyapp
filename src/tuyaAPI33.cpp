@@ -244,6 +244,7 @@ bool tuyaAPI33::ConnectToDevice(const std::string &hostname, const int portnumbe
 	serv_addr.sin_port = htons(portnumber);
 
 #ifdef WIN32
+	WSAStartup();
 	int timeout = SOCKET_TIMEOUT_SECS * 1000;
 #else
 	struct timeval timeout;
@@ -271,7 +272,7 @@ bool tuyaAPI33::ConnectToDevice(const std::string &hostname, const int portnumbe
 int tuyaAPI33::send(unsigned char* buffer, const unsigned int size)
 {
 #ifdef WIN32
-	return send(m_sockfd, buffer, size, 0);
+	return ::send(m_sockfd, (char*)buffer, size, 0);
 #else
 	return write(m_sockfd, buffer, size);
 #endif
@@ -294,7 +295,7 @@ int tuyaAPI33::receive(unsigned char* buffer, const unsigned int maxsize, const 
 #endif
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #ifdef WIN32
-		numbytes = (unsigned int)recv(m_sockfd, buffer, maxsize, 0 );
+		numbytes = (unsigned int)recv(m_sockfd, (char*)buffer, maxsize, 0 );
 #else
 		numbytes = (unsigned int)read(m_sockfd, buffer, maxsize);
 #endif
