@@ -33,9 +33,6 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
-#ifdef DEBUG
-#include <iostream>
-
 
 #define PROTOCOL_33_HEADER_SIZE 16
 #define PROTOCOL_33_EXTRA_HEADER_SIZE 15
@@ -44,6 +41,8 @@
 #define MESSAGE_TRAILER_SIZE 8
 
 
+#ifdef DEBUG
+#include <iostream>
 
 void exit_error(const char *msg)
 {
