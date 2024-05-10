@@ -9,8 +9,6 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
-#define DEBUG
-
 #define SOCKET_TIMEOUT_SECS 5
 
 #include "tuyaAPI33.hpp"
