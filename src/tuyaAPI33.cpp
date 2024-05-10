@@ -9,6 +9,8 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
+#define DEBUG
+
 #define SOCKET_TIMEOUT_SECS 5
 
 #include "tuyaAPI33.hpp"
@@ -36,6 +38,15 @@
 #ifdef DEBUG
 #include <iostream>
 
+
+#define PROTOCOL_33_HEADER_SIZE 16
+#define PROTOCOL_33_EXTRA_HEADER_SIZE 15
+#define MESSAGE_PREFIX 0x000055aa
+#define MESSAGE_SUFFIX 0x0000aa55
+#define MESSAGE_TRAILER_SIZE 8
+
+
+
 void exit_error(const char *msg)
 {
 	perror(msg);
@@ -53,79 +64,88 @@ tuyaAPI33::~tuyaAPI33()
 }
 
 
-int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, std::string payload, const std::string &encryption_key)
+int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key)
 {
-	// pad payload to a multiple of 16 bytes
-	int payload_len = (int)payload.length();
-	uint8_t padding = 16 - (payload_len % 16);
-	for (int i = 0; i < padding; i++)
-		payload.insert(payload.end(), padding);
-	payload_len = (int)payload.length();
+	int bufferpos = 0;
+	memset(buffer, 0, PROTOCOL_33_HEADER_SIZE);
+	// set message prefix
+	buffer[0] = (MESSAGE_PREFIX & 0xFF000000) >> 24;
+	buffer[1] = (MESSAGE_PREFIX & 0x00FF0000) >> 16;
+	buffer[2] = (MESSAGE_PREFIX & 0x0000FF00) >> 8;
+	buffer[3] = (MESSAGE_PREFIX & 0x000000FF);
+	// set command code at int32 @msg[8] (single byte value @msg[11])
+	buffer[11] = command;
+	bufferpos += (int)PROTOCOL_33_HEADER_SIZE;
 
-#ifdef DEBUG
-	std::cout << "dbg: padded payload (len=" << payload_len << "): ";
-	for(int i=0; i<payload_len; ++i)
-		printf("%.2x", (uint8_t)payload[i]);
-	std::cout << "\n";
-#endif
+	if ((command != TUYA_DP_QUERY) && (command != TUYA_UPDATEDPS))
+	{
+		// add the protocol 3.3 secondary header
+		unsigned char* extraHeader = &buffer[bufferpos];
+		memset(extraHeader, 0, PROTOCOL_33_EXTRA_HEADER_SIZE);
+		strcpy((char*)extraHeader, "3.3");
+		bufferpos += PROTOCOL_33_EXTRA_HEADER_SIZE;
+	}
 
-	unsigned char* encryptedpayload = new unsigned char[payload_len + 16];
-	memset(encryptedpayload, 0, payload_len + 16);
-	int encryptedsize = 0;
+	unsigned char* cEncryptedPayload = &buffer[bufferpos];
+	int payloadSize = (int)szPayload.length();
+	memset(cEncryptedPayload, 0, payloadSize + 16);
+	int encryptedSize = 0;
+	int encryptedChars = 0;
 
 	try
 	{
 		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
 		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
-		EVP_EncryptUpdate(ctx, encryptedpayload, &encryptedsize, (unsigned char*)payload.c_str(), payload_len);
+		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)szPayload.c_str(), payloadSize);
+		encryptedSize = encryptedChars;
+		EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
+		encryptedSize += encryptedChars;
 		EVP_CIPHER_CTX_free(ctx);
 	}
 	catch (const std::exception& e)
 	{
+		// encryption failure
 		return -1;
 	}
 
 #ifdef DEBUG
-	std::cout << "dbg: encrypted payload: ";
-	for(int i=0; i<encryptedsize; ++i)
-		printf("%.2x", (uint8_t)encryptedpayload[i]);
+	std::cout << "dbg: encrypted payload (size=" << encryptedSize << "): ";
+	for(int i=0; i<encryptedSize; ++i)
+		printf("%.2x", (uint8_t)cEncryptedPayload[i]);
 	std::cout << "\n";
 #endif
 
-	bcopy(MESSAGE_SEND_HEADER, (char*)&buffer[0], sizeof(MESSAGE_SEND_HEADER));
+	bufferpos += encryptedSize;
+	unsigned char* cMessageTrailer = &buffer[bufferpos];
 
-	int payload_pos = (int)sizeof(MESSAGE_SEND_HEADER);
-	if ((command != TUYA_DP_QUERY) && (command != TUYA_UPDATEDPS))
-	{
-		// add the protocol 3.3 secondary header
-		bcopy(PROTOCOL_33_HEADER, (char*)&buffer[payload_pos], sizeof(PROTOCOL_33_HEADER));
-		payload_pos += sizeof(PROTOCOL_33_HEADER);
-	}
-	bcopy(encryptedpayload, (char*)&buffer[payload_pos], payload_len);
-	bcopy(MESSAGE_SEND_TRAILER, (char*)&buffer[payload_pos + payload_len], sizeof(MESSAGE_SEND_TRAILER));
-
-	// insert command code in int32 @msg[8] (single byte value @msg[11])
-	buffer[11] = command;
-	// insert message size in int32 @msg[12]
-	buffer[14] = ((payload_pos + payload_len + sizeof(MESSAGE_SEND_TRAILER) - sizeof(MESSAGE_SEND_HEADER)) & 0xFF00) >> 8;
-	buffer[15] = (payload_pos + payload_len + sizeof(MESSAGE_SEND_TRAILER) - sizeof(MESSAGE_SEND_HEADER)) & 0xFF;
+	// update message size in int32 @buffer[12]
+	int buffersize = bufferpos + MESSAGE_TRAILER_SIZE;
+	buffer[14] = ((buffersize - PROTOCOL_33_HEADER_SIZE) & 0x0000FF00) >> 8;
+	buffer[15] = (buffersize - PROTOCOL_33_HEADER_SIZE) & 0x000000FF;
 
 	// calculate CRC
 	unsigned long crc = crc32(0L, Z_NULL, 0);
-	crc = crc32(crc, buffer, payload_pos + payload_len) & 0xFFFFFFFF;
-	buffer[payload_pos + payload_len] = (crc & 0xFF000000) >> 24;
-	buffer[payload_pos + payload_len + 1] = (crc & 0x00FF0000) >> 16;
-	buffer[payload_pos + payload_len + 2] = (crc & 0x0000FF00) >> 8;
-	buffer[payload_pos + payload_len + 3] = crc & 0x000000FF;
+	crc = crc32(crc, buffer, bufferpos) & 0xFFFFFFFF;
+
+	// fill the message trailer
+	cMessageTrailer[0] = (crc & 0xFF000000) >> 24;
+	cMessageTrailer[1] = (crc & 0x00FF0000) >> 16;
+	cMessageTrailer[2] = (crc & 0x0000FF00) >> 8;
+	cMessageTrailer[3] = (crc & 0x000000FF);
+
+	cMessageTrailer[4] = (MESSAGE_SUFFIX & 0xFF000000) >> 24;
+	cMessageTrailer[5] = (MESSAGE_SUFFIX & 0x00FF0000) >> 16;
+	cMessageTrailer[6] = (MESSAGE_SUFFIX & 0x0000FF00) >> 8;
+	cMessageTrailer[7] = (MESSAGE_SUFFIX & 0x000000FF);
 
 #ifdef DEBUG
 	std::cout << "dbg: complete message: ";
-	for(int i=0; i<(int)(payload_pos + payload_len + sizeof(MESSAGE_SEND_TRAILER)); ++i)
+	for(int i=0; i<(int)(buffersize); ++i)
 		printf("%.2x", (uint8_t)buffer[i]);
 	std::cout << "\n";
 #endif
 
-	return (int)(payload_pos + payload_len + sizeof(MESSAGE_SEND_TRAILER));
+	return buffersize;
 }
 
 
@@ -133,54 +153,55 @@ std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 {
 	std::string result;
 
-	int message_start = 0;
+	int bufferpos = 0;
 
-#ifdef DEBUG
-	std::cout << "dbg: received message: ";
-	for(int i=0; i<(int)(size); ++i)
-		printf("%.2x", (uint8_t)buffer[i]);
-	std::cout << "\n";
-#endif
-
-	while (message_start < size)
+	while (bufferpos < size)
 	{
-		unsigned char* message = &buffer[message_start];
-		unsigned char *encryptedpayload = &message[sizeof(MESSAGE_SEND_HEADER) + sizeof(int)];
-		int message_size = (int)((uint8_t)message[15] + ((uint8_t)message[14] << 8) + sizeof(MESSAGE_SEND_HEADER));
+		unsigned char* cTuyaResponse = &buffer[bufferpos];
+		int messageSize = (int)((uint8_t)cTuyaResponse[15] + ((uint8_t)cTuyaResponse[14] << 8) + PROTOCOL_33_HEADER_SIZE);
+		int retcode = (int)((uint8_t)cTuyaResponse[19] + ((uint8_t)cTuyaResponse[18] << 8));
+
+		if (retcode != 0)
+		{
+			char cErrorMessage[50];
+			sprintf(cErrorMessage, "{\"msg\":\"device returned error %d\"}", retcode);
+			result.append(cErrorMessage);
+			bufferpos += messageSize;
+			continue;
+		}
 
 
 		// verify crc
-		unsigned int crc_sent = ((uint8_t)message[message_size - 8] << 24) + ((uint8_t)message[message_size - 7] << 16) + ((uint8_t)message[message_size - 6] << 8) + (uint8_t)message[message_size - 5];
+		unsigned int crc_sent = ((uint8_t)cTuyaResponse[messageSize - 8] << 24) + ((uint8_t)cTuyaResponse[messageSize - 7] << 16) + ((uint8_t)cTuyaResponse[messageSize - 6] << 8) + (uint8_t)cTuyaResponse[messageSize - 5];
 		unsigned int crc = crc32(0L, Z_NULL, 0) & 0xFFFFFFFF;
-		crc = crc32(crc, message, message_size - 8) & 0xFFFFFFFF;
+		crc = crc32(crc, cTuyaResponse, messageSize - 8) & 0xFFFFFFFF;
 
 		if (crc == crc_sent)
 		{
-			int payload_len = (int)(message_size - sizeof(MESSAGE_SEND_HEADER) - sizeof(int) - sizeof(MESSAGE_SEND_TRAILER));
+			unsigned char *cEncryptedPayload = &cTuyaResponse[PROTOCOL_33_HEADER_SIZE + sizeof(retcode)];
+			int payloadSize = (int)(messageSize - PROTOCOL_33_HEADER_SIZE - sizeof(retcode) - MESSAGE_TRAILER_SIZE);
 			// test for presence of secondary protocol 3.3 header (odd message size)
-			if ((message[15] & 0x1) && (encryptedpayload[0] == '3') && (encryptedpayload[1] == '.') && (encryptedpayload[2] == '3'))
+			if ((cTuyaResponse[15] & 0x1) && (cEncryptedPayload[0] == '3') && (cEncryptedPayload[1] == '.') && (cEncryptedPayload[2] == '3'))
 			{
-				encryptedpayload += 15;
-				payload_len -= 15;
+				cEncryptedPayload += 15;
+				payloadSize -= 15;
 			}
 
-			unsigned char* decryptedpayload = new unsigned char[payload_len + 16];
-			memset(decryptedpayload, 0, payload_len + 16);
-			int decryptedsize = 0;
+			unsigned char* cDecryptedPayload = new unsigned char[payloadSize + 16];
+			memset(cDecryptedPayload, 0, payloadSize + 16);
+			int decryptedSize = 0;
+			int decryptedChars = 0;
 
 			try
 			{
 				EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
 				EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
-				EVP_DecryptUpdate(ctx, decryptedpayload, &decryptedsize, encryptedpayload, payload_len);
+				EVP_DecryptUpdate(ctx, cDecryptedPayload, &decryptedChars, cEncryptedPayload, payloadSize);
+				decryptedSize = decryptedChars;
+				EVP_DecryptFinal_ex(ctx, cDecryptedPayload + decryptedSize, &decryptedChars);
+				decryptedSize += decryptedChars;
 				EVP_CIPHER_CTX_free(ctx);
-
-				// trim padding chars from decrypted payload
-				uint8_t padding = decryptedpayload[payload_len - 1];
-				if (padding <= 16)
-					decryptedpayload[payload_len - padding] = 0;
-
-				result.append((char*)decryptedpayload);
+				result.append((char*)cDecryptedPayload);
 			}
 			catch (const std::exception& e)
 			{
@@ -190,7 +211,7 @@ std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 		else
 			result.append("{\"msg\":\"crc error\"}");
 
-		message_start += message_size;
+		bufferpos += messageSize;
 	}
 	return result;
 }

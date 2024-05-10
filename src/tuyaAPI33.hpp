@@ -79,7 +79,7 @@ public:
 	tuyaAPI33();
 	~tuyaAPI33();
 
-	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, std::string payload, const std::string &encryption_key);
+	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key);
 	std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key);
 
 	bool ConnectToDevice(const std::string &hostname, const int portnumber, const uint8_t retries = 5);
@@ -90,11 +90,6 @@ public:
 
 private:
 	int m_sockfd;
-
-	const uint8_t MESSAGE_SEND_HEADER[16] = {0,0,0x55,0xaa,0,0,0,0,0,0,0,0,0,0,0,0};
-	const uint8_t MESSAGE_SEND_TRAILER[8] = {0,0,0,0,0,0,0xaa,0x55};
-	const uint8_t PROTOCOL_33_HEADER[15] = {'3','.','3',0,0,0,0,0,0,0,0,0,0,0,0};
-
 	bool ResolveHost(const std::string &hostname, struct sockaddr_in& serv_addr);
 
 };
