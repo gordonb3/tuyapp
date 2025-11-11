@@ -167,7 +167,7 @@ int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 }
 
 
-std::string tuyaAPI31::DecodeTuyaMessage(unsigned char* buffer, const int size)
+std::string tuyaAPI31::DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key)
 {
 	std::string result;
 

@@ -21,7 +21,7 @@
 
 #define TUYA_COMMAND_PORT 6668
 
-#include "tuyaAPI33.hpp"
+#include "tuyaAPI.hpp"
 #include <iostream>
 #include <sstream>
 #include <string.h>
@@ -37,7 +37,7 @@ void error(const char *msg)
 }
 
 
-bool get_device_by_name(const std::string name, std::string &id, std::string &key, std::string &address)
+bool get_device_by_name(const std::string name, std::string &id, std::string &key, std::string &address, std::string &version)
 {
 	std::string szFileContent;
 	std::ifstream myfile (SECRETSFILE);
@@ -74,6 +74,7 @@ bool get_device_by_name(const std::string name, std::string &id, std::string &ke
 				id =  jDevices["devices"][i]["id"].asString();
 				key = jDevices["devices"][i]["key"].asString();
 				address = jDevices["devices"][i]["address"].asString();
+				version = jDevices["devices"][i]["version"].asString();
 				return true;
 			}
 		}
@@ -92,8 +93,8 @@ int main(int argc, char *argv[])
 	   exit(0);
 	}
 
-	std::string device_id, device_key, device_address;
-	if (!get_device_by_name(std::string(argv[1]), device_id, device_key, device_address))
+	std::string device_id, device_key, device_address, device_version;
+	if (!get_device_by_name(std::string(argv[1]), device_id, device_key, device_address, device_version))
 	{
 		std::cout << "unkown device\n";
 		exit(0);
@@ -103,12 +104,17 @@ int main(int argc, char *argv[])
 	std::cout << "id : " << device_id << "\n";
 	std::cout << "key : " << device_key<< "\n";
 	std::cout << "address : " << device_address << "\n";
+	std::cout << "version : " << device_version << "\n";
 #endif
 
 	unsigned char message_buffer[MAX_BUFFER_SIZE];
 
-	tuyaAPI33 *tuyaclient;
-	tuyaclient = new tuyaAPI33();
+	tuyaAPI *tuyaclient = tuyaAPI::create(device_version);
+	if (!tuyaclient)
+	{
+		std::cout << "Error: Unsupported protocol version " << device_version << "\n";
+		exit(0);
+	}
 
 	if (!tuyaclient->ConnectToDevice(device_address, TUYA_COMMAND_PORT))
 		error("ERROR connecting");

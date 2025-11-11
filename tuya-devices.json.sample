@@ -3,18 +3,20 @@
 		{"address":"192.168.10.91",
 		 "id":"123456789abcdef12345",
 		 "key":"abcdef1234567890",
-		 "name":"tuya1"
+		 "name":"tuya1",
+		 "version":"3.3"
 		},
 		{"address":"192.168.10.92",
 		 "id":"123456789abcdef23456",
 		 "key":"abcdef1234567890",
-		 "name":"tuya2"
+		 "name":"tuya2",
+		 "version":"3.3"
 		},
 		{"address":"192.168.10.93",
 		 "id":"123456789abcdef34567",
 		 "key":"abcdef1234567890",
-		 "name":"tuya3"
+		 "name":"tuya3",
+		 "version":"3.3"
 		}
 	]
 }
-
