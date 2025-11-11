@@ -22,7 +22,7 @@
 #define TUYA_COMMAND_PORT 6668
 #define ENERGY_DIVISOR 10
 
-#include "tuyaAPI33.hpp"
+#include "tuyaAPI.hpp"
 #include <unistd.h>
 #include <iostream>
 #include <sstream>
@@ -35,7 +35,7 @@
 #include <mutex>
 
 
-bool get_device_by_name(const std::string name, std::string &id, std::string &key, std::string &address)
+bool get_device_by_name(const std::string name, std::string &id, std::string &key, std::string &address, std::string &version)
 {
 	std::string szFileContent;
 	std::ifstream myfile (SECRETSFILE);
@@ -71,6 +71,7 @@ bool get_device_by_name(const std::string name, std::string &id, std::string &ke
 				id =  jDevices["devices"][i]["id"].asString();
 				key = jDevices["devices"][i]["key"].asString();
 				address = jDevices["devices"][i]["address"].asString();
+				version = jDevices["devices"][i]["version"].asString();
 				return true;
 			}
 		}
@@ -82,8 +83,8 @@ bool get_device_by_name(const std::string name, std::string &id, std::string &ke
 bool monitor(std::string devicename)
 {
 	std::mutex writeprotect;
-	std::string device_id, device_key, device_address;
-	if (!get_device_by_name(devicename, device_id, device_key, device_address))
+	std::string device_id, device_key, device_address, device_version;
+	if (!get_device_by_name(devicename, device_id, device_key, device_address, device_version))
 	{
 		writeprotect.lock();
 		std::cout << "Error: Device unknown\n";
@@ -93,8 +94,12 @@ bool monitor(std::string devicename)
 
 	unsigned char message_buffer[MAX_BUFFER_SIZE];
 
-	tuyaAPI33 *tuyaclient;
-	tuyaclient = new tuyaAPI33();
+	tuyaAPI *tuyaclient = tuyaAPI::create(device_version);
+	if (!tuyaclient)
+	{
+		std::cout << "Error: Unsupported protocol version " << device_version << "\n";
+		exit(0);
+	}
 
 	if (!tuyaclient->ConnectToDevice(device_address, TUYA_COMMAND_PORT))
 	{
