@@ -6,7 +6,7 @@ C++ client library for the Local Tuya API
 
 This project is heavily based on jasonacox's Python based tinytuya project. Reason for redeveloping this in C++ is that Python is quite heavy on resources and that does not suit well with embedded machines. Also since Tuya devices from various generations do not share a common protocol there is fairly little point in trying to fit all the different protocols into a single class. If you select the wrong protocol the device will simply not respond at all and therefore this library aims to have a separate class for each of the supported protocols.
 
-Currently the supported protocol is limited to version 3.3 as this happens to match all the devices I own myself. At user request I have added a class for protocol version 3.1, however this is still in the experimental phase.
+Current verified protocol versions are 3.3 and 3.4. At user request I have added a class for protocol version 3.1, however this is still in the experimental phase.
 
 ## Examples
 
