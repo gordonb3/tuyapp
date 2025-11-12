@@ -100,7 +100,7 @@ bool monitor(std::string devicename)
 		exit(0);
 	}
 
-	if (!tuyaclient->ConnectToDevice(device_address, TUYA_COMMAND_PORT))
+	if (!tuyaclient->ConnectToDevice(device_address))
 	{
 		writeprotect.lock();
 		std::cout << "Error connecting to device: " << strerror(errno) << " (" << errno << ")\n";

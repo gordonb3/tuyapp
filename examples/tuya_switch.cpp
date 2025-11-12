@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
-	if (!tuyaclient->ConnectToDevice(device_address, TUYA_COMMAND_PORT))
+	if (!tuyaclient->ConnectToDevice(device_address))
 		error("ERROR connecting");
 
 	std::string s_switchstate = std::string(argv[2]);

@@ -25,6 +25,9 @@
 #include <openssl/rand.h>
 #include <openssl/hmac.h>
 
+#ifdef DEBUG
+#include <iostream>
+#endif
 
 tuyaAPI34::tuyaAPI34()
 {

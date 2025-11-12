@@ -23,6 +23,9 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
+#ifdef DEBUG
+#include <iostream>
+#endif
 
 int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key)
 {

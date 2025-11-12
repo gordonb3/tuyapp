@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
-	if (!tuyaclient->ConnectToDevice(device_address, TUYA_COMMAND_PORT))
+	if (!tuyaclient->ConnectToDevice(device_address))
 	{
 		std::cout << "Error connecting to device: " << strerror(errno) << " (" << errno << ")\n";
 		exit(1);

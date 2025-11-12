@@ -14,6 +14,9 @@
 #ifndef _tuyaTCP
 #define _tuyaTCP
 
+// Tuya Local Access TCP Port
+#define TUYA_COMMAND_PORT 6668
+
 #include "tuyaTCP.hpp"
 
 #include <string>
@@ -31,7 +34,7 @@ public:
 	tuyaTCP();
 	~tuyaTCP();
 
-	bool ConnectToDevice(const std::string &hostname, const int portnumber, const uint8_t retries = 5);
+	bool ConnectToDevice(const std::string &hostname, const uint8_t retries = 5);
 	int send(unsigned char* buffer, const unsigned int size);
 	int receive(unsigned char* buffer, const unsigned int maxsize, const unsigned int minsize = 28);
 	void disconnect();
@@ -40,11 +43,6 @@ public:
 private:
 	int m_sockfd;
 	bool ResolveHost(const std::string &hostname, struct sockaddr_in& serv_addr);
-
-#ifdef DEBUG
-#include <iostream>
-void exit_error(const char *msg);
-#endif
 
 };
 

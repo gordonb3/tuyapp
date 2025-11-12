@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 	   fprintf(stderr,"usage %s hostname tuya_id tuya_key on|off|toggle [countdown]\n", argv[0]);
 	   exit(0);
 	}
-	if (!tuyaclient->ConnectToDevice(std::string(argv[1]), TUYA_COMMAND_PORT))
+	if (!tuyaclient->ConnectToDevice(std::string(argv[1])))
 		c_error("ERROR connecting");
 
 	std::string device_id = std::string(argv[2]);

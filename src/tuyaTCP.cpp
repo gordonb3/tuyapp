@@ -9,7 +9,8 @@
  *	@license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
-#define SOCKET_TIMEOUT_SECS 5
+#define SOCKET_CONNECT_TIMEOUT_SECS 5
+#define SOCKET_RECEIVE_TIMEOUT_SECS 1
 
 #include "tuyaTCP.hpp"
 #include <netdb.h>
@@ -26,10 +27,14 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
 #endif
 
 #ifdef DEBUG
-void tuyaTCP::exit_error(const char *msg)
+#include <iostream>
+void exit_error(const char *msg)
 {
 	perror(msg);
 	exit(0);
@@ -48,7 +53,7 @@ tuyaTCP::~tuyaTCP()
 }
 
 
-bool tuyaTCP::ConnectToDevice(const std::string &hostname, const int portnumber, uint8_t retries)
+bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 {
 	struct sockaddr_in serv_addr;
 	bzero((char*)&serv_addr, sizeof(serv_addr));
@@ -59,7 +64,11 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, const int portnumber,
 		return false;
 #endif
 
+#ifdef WIN32
+	m_sockfd = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, 0 , 0 , 0);
+#else
 	m_sockfd = socket(AF_INET, SOCK_STREAM, 0);
+#endif
 	if (m_sockfd < 0)
 #ifdef DEBUG
 		exit_error("ERROR opening socket");
@@ -67,22 +76,105 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, const int portnumber,
 		return false;
 #endif
 
-	serv_addr.sin_port = htons(portnumber);
+#ifdef WIN32
+	int recvTimeout = SOCKET_RECEIVE_TIMEOUT_SECS * 1000;
+#else
+	struct timeval recvTimeout;
+	recvTimeout.tv_sec = SOCKET_RECEIVE_TIMEOUT_SECS;
+	recvTimeout.tv_usec = 0;
+#endif
+	setsockopt(m_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&recvTimeout, sizeof recvTimeout);
 
 #ifdef WIN32
-	WSAStartup();
-	int timeout = SOCKET_TIMEOUT_SECS * 1000;
-#else
-	struct timeval timeout;
-	timeout.tv_sec = SOCKET_TIMEOUT_SECS;
-	timeout.tv_usec = 0;
-#endif
-	setsockopt(m_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof timeout);
+	int set = 1;
+	setsockopt(m_sockfd, IPPROTO_TCP, TCP_NODELAY,  (char*) &set, sizeof(set) );
 
+	fd_set fdw, fdr, fde;
+	FD_ZERO(&fdw);
+	FD_ZERO(&fdr);
+	FD_ZERO(&fde);
+	FD_SET(m_sockfd, &fdw);
+	FD_SET(m_sockfd, &fdr);
+	FD_SET(m_sockfd, &fde);
+
+	timeval connTimeout;
+	connTimeout.tv_sec = SOCKET_CONNECT_TIMEOUT_SECS;
+	connTimeout.tv_usec = 0;
+
+	unsigned long nonblock = 1;
+	ioctlsocket(m_sockfd, FIONBIO, &nonblock);
+#else
+	struct pollfd fds;
+	fds.fd = m_sockfd;
+	fds.events = POLLERR | POLLOUT;
+	fds.revents = 0;
+
+	fcntl(m_sockfd, F_SETFL, O_NONBLOCK);
+#endif
+
+	int so_error;
+	socklen_t len = sizeof so_error;
+	serv_addr.sin_port = htons(TUYA_COMMAND_PORT);
 	for (uint8_t i = 0; i < retries; i++)
 	{
-		if (connect(m_sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == 0)
+#ifdef WIN32
+		if (connect(m_sockfd, (const sockaddr*)&serv_addr, sizeof(serv_addr)) == 0)
+		{
+			nonblock = 0;
+			ioctlsocket(m_sockfd, FIONBIO, &nonblock);
 			return true;
+		}
+		else
+		{
+			if (WSAGetLastError() == WSAEWOULDBLOCK)
+			{
+				if (select(static_cast<int>(m_sockfd + 1), &fdw, &fdr, &fde, &tv) > 0)
+				{
+					// try to get socket options
+					if (getsockopt(m_sockfd, SOL_SOCKET, SO_ERROR, (char *)&so_error, &len) >= 0)
+					{
+						if (so_error == 0)
+						{
+							nonblock = 0;
+							ioctlsocket(m_sockfd, FIONBIO, &nonblock);
+							return true;
+						}
+					}
+				}
+			}
+		}
+#else
+		if (connect(m_sockfd, (const sockaddr*)&serv_addr, sizeof(serv_addr)) == 0)
+		{
+			long socketMode = fcntl(m_sockfd, F_GETFL, nullptr);
+			socketMode &= (~O_NONBLOCK);
+			fcntl(m_sockfd, F_SETFL, socketMode);
+			return true;
+		}
+		else
+		{
+
+			if (errno == EINPROGRESS)
+			{
+				if (poll(&fds, 1, SOCKET_CONNECT_TIMEOUT_SECS * 1000) > 0)
+				{
+					// try to get socket options
+					if (getsockopt(m_sockfd, SOL_SOCKET, SO_ERROR, (char *)&so_error, &len) >= 0)
+					{
+						if (so_error == 0)
+						{
+							long socketMode = fcntl(m_sockfd, F_GETFL, nullptr);
+							socketMode &= (~O_NONBLOCK);
+							fcntl(m_sockfd, F_SETFL, socketMode);
+							return true;
+						}
+					}
+				}
+			}
+		}
+
+#endif
+
 #ifdef DEBUG
 		if (i < retries)
 			std::cout << "{\"msg\":\"" << strerror(errno) << "\",\"code\":" << errno << "}\n";
@@ -155,6 +247,7 @@ void tuyaTCP::disconnect()
 	if (getaddrinfo(hostname.c_str(), "0", nullptr, &addr) == 0)
 	{
 		struct sockaddr_in *saddr = (((struct sockaddr_in *)addr->ai_addr));
+		serv_addr.sin_family = saddr->sin_family;
 		memcpy(&serv_addr, saddr, sizeof(sockaddr_in));
 		return true;
 	}
