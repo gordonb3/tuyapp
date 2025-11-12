@@ -14,6 +14,9 @@
 #ifndef _tuyaAPI
 #define _tuyaAPI
 
+// Tuya Local Access TCP Port
+#define TUYA_COMMAND_PORT 6668
+
 // Tuya Command Types
 #define TUYA_UDP 0  // HEART_BEAT_CMD
 #define TUYA_AP_CONFIG 1  // PRODUCT_INFO_CMD
@@ -61,10 +64,13 @@
 #define TUYA_LAN_GW_UPDATE 251
 #define TUYA_LAN_SET_GW_CHANNEL 252
 
+
+#include "tuyaTCP.hpp"
 #include <string>
 #include <cstdint>
 
-class tuyaAPI
+
+class tuyaAPI : public tuyaTCP
 {
 public:
 	virtual ~tuyaAPI() {}
@@ -74,10 +80,6 @@ public:
 	virtual int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) = 0;
 	virtual std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) = 0;
 
-	virtual bool ConnectToDevice(const std::string &hostname, const int portnumber, const uint8_t retries = 5) = 0;
-	virtual int send(unsigned char* buffer, const unsigned int size) = 0;
-	virtual int receive(unsigned char* buffer, const unsigned int maxsize, const unsigned int minsize = 28) = 0;
-	virtual void disconnect() = 0;
 };
 
 #endif

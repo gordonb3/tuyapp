@@ -23,29 +23,14 @@ class tuyaAPI31 : public tuyaAPI
 {
 
 public:
-/************************************************************************
- *									*
- *	Class construct							*
- *									*
- ************************************************************************/
-	tuyaAPI31();
-	~tuyaAPI31();
 
 	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) override;
 	std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) override;
 
-	bool ConnectToDevice(const std::string &hostname, const int portnumber, const uint8_t retries = 5) override;
-	int send(unsigned char* buffer, const unsigned int size) override;
-	int receive(unsigned char* buffer, const unsigned int maxsize, const unsigned int minsize = 28) override;
-	void disconnect() override;
-
-
 private:
-	int m_sockfd;
-	bool ResolveHost(const std::string &hostname, struct sockaddr_in& serv_addr);
 	int encode_base64( const unsigned char *input_str, int input_size, unsigned char *output_str);
 	std::string make_md5_digest(const std::string &str);
-};
 
-#endif
+};
+#endif // _tuyaAPI31
 

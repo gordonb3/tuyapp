@@ -19,7 +19,6 @@
 #define SECRETSFILE "tuya-devices.json"
 #endif
 
-#define TUYA_COMMAND_PORT 6668
 #define ENERGY_DIVISOR 10
 
 #include "tuyaAPI.hpp"

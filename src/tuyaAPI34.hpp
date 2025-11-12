@@ -29,29 +29,21 @@ public:
  *									*
  ************************************************************************/
 	tuyaAPI34();
-	~tuyaAPI34();
 
 	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) override;
 	std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) override;
 
-	bool ConnectToDevice(const std::string &hostname, const int portnumber, const uint8_t retries = 5) override;
-	int send(unsigned char* buffer, const unsigned int size) override;
-	int receive(unsigned char* buffer, const unsigned int maxsize, const unsigned int minsize = 28) override;
-	void disconnect() override;
-
-
 private:
-	int m_sockfd;
 	unsigned char m_session_key[16];
 	unsigned char m_local_nonce[16];
 	unsigned char m_remote_nonce[16];
 	bool m_session_established;
 	uint32_t m_seqno;
 
-	bool ResolveHost(const std::string &hostname, struct sockaddr_in& serv_addr);
 	bool NegotiateSession(const std::string &local_key);
 	int BuildSessionMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key);
 	std::string DecodeSessionMessage(unsigned char* buffer, const int size, const std::string &encryption_key);
-};
 
-#endif
+};
+#endif // _tuyaAPI34
+

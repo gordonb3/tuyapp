@@ -12,7 +12,6 @@
 //#define DEBUG
 
 #define MAX_BUFFER_SIZE 1024
-#define TUYA_COMMAND_PORT 6668
 
 #include "tuyaAPI33.hpp"
 #include <unistd.h>

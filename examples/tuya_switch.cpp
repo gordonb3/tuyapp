@@ -19,8 +19,6 @@
 #define SECRETSFILE "tuya-devices.json"
 #endif
 
-#define TUYA_COMMAND_PORT 6668
-
 #include "tuyaAPI.hpp"
 #include <iostream>
 #include <sstream>
