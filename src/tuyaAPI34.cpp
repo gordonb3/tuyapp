@@ -46,6 +46,15 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 
 	m_seqno++;
 
+	// For control commands (7, 13), protocol 3.4 requires "3.4" prefix + 12 null bytes
+	std::string payload = szPayload;
+	if (command == TUYA_CONTROL || command == TUYA_CONTROL_NEW)
+	{
+		payload = "3.4";
+		payload.append(12, '\0');
+		payload.append(szPayload);
+	}
+
 	int bufferpos = 0;
 	memset(buffer, 0, PROTOCOL_34_HEADER_SIZE);
 	buffer[0] = (MESSAGE_PREFIX & 0xFF000000) >> 24;
@@ -60,11 +69,11 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	bufferpos += (int)PROTOCOL_34_HEADER_SIZE;
 
 #ifdef DEBUG
-	std::cout << "dbg: Payload to encrypt (" << szPayload.length() << " bytes): " << szPayload << "\n";
+	std::cout << "dbg: Payload to encrypt (" << payload.length() << " bytes): " << payload << "\n";
 #endif
 
 	unsigned char* cEncryptedPayload = &buffer[bufferpos];
-	int payloadSize = (int)szPayload.length();
+	int payloadSize = (int)payload.length();
 	memset(cEncryptedPayload, 0, payloadSize + 16);
 	int encryptedSize = 0;
 	int encryptedChars = 0;
@@ -73,7 +82,7 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	{
 		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
 		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, m_session_key, nullptr);
-		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)szPayload.c_str(), payloadSize);
+		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)payload.c_str(), payloadSize);
 		encryptedSize = encryptedChars;
 		EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
 		encryptedSize += encryptedChars;
