@@ -31,6 +31,7 @@
 
 tuyaAPI34::tuyaAPI34()
 {
+	m_protocol = Protocol::v34;
 	m_session_established = false;
 	m_seqno = 0;
 }
