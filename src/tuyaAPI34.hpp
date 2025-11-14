@@ -33,6 +33,8 @@ public:
 	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) override;
 	std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) override;
 
+	bool ConnectToDevice(const std::string &hostname, const uint8_t retries = 5) override;
+
 private:
 	unsigned char m_session_key[16];
 	unsigned char m_local_nonce[16];

@@ -34,7 +34,7 @@ public:
 	tuyaTCP();
 	~tuyaTCP();
 
-	bool ConnectToDevice(const std::string &hostname, const uint8_t retries = 5);
+	virtual bool ConnectToDevice(const std::string &hostname, const uint8_t retries = 5);
 	int send(unsigned char* buffer, const unsigned int size);
 	int receive(unsigned char* buffer, const unsigned int maxsize, const unsigned int minsize = 28);
 	void disconnect();
