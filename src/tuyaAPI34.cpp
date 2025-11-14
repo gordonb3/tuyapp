@@ -16,7 +16,6 @@
 #define MESSAGE_TRAILER_SIZE 36
 
 #include "tuyaAPI34.hpp"
-#include <zlib.h>
 #include <cstring>
 #include <thread>
 #include <openssl/evp.h>
@@ -143,10 +142,6 @@ std::string tuyaAPI34::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 			bufferpos += messageSize;
 			continue;
 		}
-
-		unsigned int crc_sent = ((uint8_t)cTuyaResponse[messageSize - 8] << 24) + ((uint8_t)cTuyaResponse[messageSize - 7] << 16) + ((uint8_t)cTuyaResponse[messageSize - 6] << 8) + (uint8_t)cTuyaResponse[messageSize - 5];
-		unsigned int crc = crc32(0L, Z_NULL, 0) & 0xFFFFFFFF;
-		crc = crc32(crc, cTuyaResponse, messageSize - 8) & 0xFFFFFFFF;
 
 		// For v3.4, verify HMAC instead of CRC
 		unsigned char hmac_sent[32];
