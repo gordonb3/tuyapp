@@ -9,8 +9,7 @@
  *	@license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
-#define SOCKET_CONNECT_TIMEOUT_SECS 5
-#define SOCKET_RECEIVE_TIMEOUT_SECS 1
+#define SOCKET_TIMEOUT_SECS 1
 
 #include "tuyaTCP.hpp"
 #include <netdb.h>
@@ -44,6 +43,7 @@ void exit_error(const char *msg)
 
 tuyaTCP::tuyaTCP()
 {
+	m_sockfd = -1;
 }
 
 
@@ -77,15 +77,6 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 #endif
 
 #ifdef WIN32
-	int recvTimeout = SOCKET_RECEIVE_TIMEOUT_SECS * 1000;
-#else
-	struct timeval recvTimeout;
-	recvTimeout.tv_sec = SOCKET_RECEIVE_TIMEOUT_SECS;
-	recvTimeout.tv_usec = 0;
-#endif
-	setsockopt(m_sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&recvTimeout, sizeof recvTimeout);
-
-#ifdef WIN32
 	int set = 1;
 	setsockopt(m_sockfd, IPPROTO_TCP, TCP_NODELAY,  (char*) &set, sizeof(set) );
 
@@ -96,10 +87,6 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 	FD_SET(m_sockfd, &fdw);
 	FD_SET(m_sockfd, &fdr);
 	FD_SET(m_sockfd, &fde);
-
-	timeval connTimeout;
-	connTimeout.tv_sec = SOCKET_CONNECT_TIMEOUT_SECS;
-	connTimeout.tv_usec = 0;
 
 	unsigned long nonblock = 1;
 	ioctlsocket(m_sockfd, FIONBIO, &nonblock);
@@ -119,60 +106,36 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 	{
 #ifdef WIN32
 		if (connect(m_sockfd, (const sockaddr*)&serv_addr, sizeof(serv_addr)) == 0)
-		{
-			nonblock = 0;
-			ioctlsocket(m_sockfd, FIONBIO, &nonblock);
 			return true;
-		}
-		else
+
+		if (WSAGetLastError() == WSAEWOULDBLOCK)
 		{
-			if (WSAGetLastError() == WSAEWOULDBLOCK)
+			if (select(static_cast<int>(m_sockfd + 1), &fdw, &fdr, &fde, &tv) > 0)
 			{
-				if (select(static_cast<int>(m_sockfd + 1), &fdw, &fdr, &fde, &tv) > 0)
+				// try to get socket options
+				if (getsockopt(m_sockfd, SOL_SOCKET, SO_ERROR, (char *)&so_error, &len) >= 0)
 				{
-					// try to get socket options
-					if (getsockopt(m_sockfd, SOL_SOCKET, SO_ERROR, (char *)&so_error, &len) >= 0)
-					{
-						if (so_error == 0)
-						{
-							nonblock = 0;
-							ioctlsocket(m_sockfd, FIONBIO, &nonblock);
-							return true;
-						}
-					}
+					if (so_error == 0)
+						return true;
 				}
 			}
 		}
 #else
 		if (connect(m_sockfd, (const sockaddr*)&serv_addr, sizeof(serv_addr)) == 0)
-		{
-			long socketMode = fcntl(m_sockfd, F_GETFL, nullptr);
-			socketMode &= (~O_NONBLOCK);
-			fcntl(m_sockfd, F_SETFL, socketMode);
 			return true;
-		}
-		else
-		{
 
-			if (errno == EINPROGRESS)
+		if (errno == EINPROGRESS)
+		{
+			if (poll(&fds, 1, SOCKET_TIMEOUT_SECS * 1000) > 0)
 			{
-				if (poll(&fds, 1, SOCKET_CONNECT_TIMEOUT_SECS * 1000) > 0)
+				// try to get socket options
+				if (getsockopt(m_sockfd, SOL_SOCKET, SO_ERROR, (char *)&so_error, &len) >= 0)
 				{
-					// try to get socket options
-					if (getsockopt(m_sockfd, SOL_SOCKET, SO_ERROR, (char *)&so_error, &len) >= 0)
-					{
-						if (so_error == 0)
-						{
-							long socketMode = fcntl(m_sockfd, F_GETFL, nullptr);
-							socketMode &= (~O_NONBLOCK);
-							fcntl(m_sockfd, F_SETFL, socketMode);
-							return true;
-						}
-					}
+					if (so_error == 0)
+						return true;
 				}
 			}
 		}
-
 #endif
 
 #ifdef DEBUG
@@ -187,7 +150,7 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 }
 
 
-int tuyaTCP::send(unsigned char* buffer, const unsigned int size)
+int tuyaTCP::send(unsigned char* buffer, const int size)
 {
 #ifdef WIN32
 	return ::send(m_sockfd, (char*)buffer, size, 0);
@@ -197,35 +160,51 @@ int tuyaTCP::send(unsigned char* buffer, const unsigned int size)
 }
 
 
-int tuyaTCP::receive(unsigned char* buffer, const unsigned int maxsize, const unsigned int minsize)
+// After sending a device state change command, tuya devices send an empty `ack` reply first
+// if waitforanswer is enabled, then setting minsize to a larger value than the empty reply
+// will cause this function to skip it and wait for the actual reply.
+// If you do not specify minsize, it will default to 28 bytes (version 3.3 message protocol)
+int tuyaTCP::receive(unsigned char* buffer, const int maxsize, const int minsize, bool waitforanswer)
 {
-#ifdef WIN32
-	unsigned int numbytes = (unsigned int)recv(m_sockfd, buffer, maxsize, 0 );
-#else
-	unsigned int numbytes = (unsigned int)read(m_sockfd, buffer, maxsize);
-#endif
-	while (numbytes <= minsize)
+	int numbytes = 0;
+	int i = 0;
+	while ((numbytes <= minsize) && (i < SOCKET_TIMEOUT_SECS * 500))
 	{
-		// after sending a device state change command tuya devices send an empty `ack` reply first
-		// wait for 100ms to allow device to commit and then retry for the answer that we want
-#ifdef DEBUG
-		std::cout << "{\"ack\":true}\n";
-#endif
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #ifdef WIN32
-		numbytes = (unsigned int)recv(m_sockfd, (char*)buffer, maxsize, 0 );
+		numbytes = recv(m_sockfd, (char*)buffer, maxsize, 0 );
 #else
-		numbytes = (unsigned int)read(m_sockfd, buffer, maxsize);
+		numbytes = read(m_sockfd, buffer, maxsize);
 #endif
+		if (!waitforanswer)
+			return numbytes;
+
+		if (numbytes < 0) {
+#ifdef WIN32
+			if (WSAGetLastError() != WSAEWOULDBLOCK)
+				return numbytes;
+#else
+			if (errno != EAGAIN)
+				return numbytes;
+#endif
+		}
+#ifdef DEBUG
+		else
+		{
+			std::cout << "{\"ack\":true}\n";
+		}
+#endif
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		i++;
 	}
-	return (int)numbytes;
+	return numbytes;
 }
 
 
 void tuyaTCP::disconnect()
 {
-	close(m_sockfd);
-	m_sockfd = 0;
+	if (m_sockfd >= 0)
+		close(m_sockfd);
+	m_sockfd = -1;
 }
 
 
