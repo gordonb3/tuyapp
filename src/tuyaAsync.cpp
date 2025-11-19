@@ -2,6 +2,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -49,6 +50,7 @@ void tuyaAsync::loop(struct timeval &tv)
 	switch (m_state)
 	{
 	case DISCONNECTED:
+	{
 		// Only attempt connect if enough time has passed since last attempt
 		if (now - m_last_connect_attempt < 10)
 			break;
@@ -64,33 +66,41 @@ void tuyaAsync::loop(struct timeval &tv)
 			break;
 		}
 
-		m_sockfd = socket(AF_INET, SOCK_STREAM, 0);
+		struct addrinfo hints = {}, *result;
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_flags = AI_NUMERICHOST;
+
+		int err = getaddrinfo(m_device_address.c_str(), "6668", &hints, &result);
+		if (err != 0) {
+			std::cerr << "Failed to resolve address: " << gai_strerror(err) << "\n";
+			break;
+		}
+
+		m_sockfd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 		if (m_sockfd < 0) {
 			std::cerr << "Failed to create socket\n";
+			freeaddrinfo(result);
 			break;
 		}
 
 		fcntl(m_sockfd, F_SETFL, O_NONBLOCK);
 
-		{
-			struct sockaddr_in addr;
-			addr.sin_family = AF_INET;
-			addr.sin_port = htons(6668);
-			inet_pton(AF_INET, m_device_address.c_str(), &addr.sin_addr);
+		err = connect(m_sockfd, result->ai_addr, result->ai_addrlen);
+		freeaddrinfo(result);
 
-			int err = connect(m_sockfd, (struct sockaddr*)&addr, sizeof(addr));
-			if (err != 0 && errno != EINPROGRESS) {
-				std::cerr << "Connect failed: " << strerror(errno) << "\n";
-				m_state = DISCONNECTING;
+		if (err != 0 && errno != EINPROGRESS) {
+			std::cerr << "Connect failed: " << strerror(errno) << "\n";
+			m_state = DISCONNECTING;
 			break;
-			}
-#ifdef DEBUG
-			std::cout << "Connect initiated (EINPROGRESS)\n";
-#endif
 		}
+#ifdef DEBUG
+		std::cout << "Connect initiated (EINPROGRESS)\n";
+#endif
 		m_state = CONNECTING;
 		m_state_start_time = now;
 		break;
+	}
 
 	case DISCONNECTING:
 		close(m_sockfd);
