@@ -96,6 +96,14 @@ public:
 	virtual int BuildSessionMessage(unsigned char *buffer) { m_session_established = true; return 0; }
 	virtual std::string DecodeSessionMessage(unsigned char* buffer, const int size) { return ""; }
 
+	// Crypto abstraction methods (can be overridden for different crypto libraries)
+	virtual int aes_128_ecb_encrypt(const unsigned char *key, const unsigned char *input, int input_len, unsigned char *output, int *output_len);
+	virtual int aes_128_ecb_decrypt(const unsigned char *key, const unsigned char *input, int input_len, unsigned char *output, int *output_len);
+	virtual void hmac_sha256(const unsigned char *key, int key_len, const unsigned char *data, int data_len, unsigned char *output);
+	virtual void md5_hash(const unsigned char *data, int data_len, unsigned char *output);
+	virtual uint32_t crc32_compute(const unsigned char *data, int data_len);
+	virtual void random_bytes(unsigned char *buffer, int len);
+
 protected:
 	Protocol m_protocol;
 	std::string m_encryption_key;
