@@ -1,7 +1,7 @@
 .PHONY : examples
 
 
-EXAMPLES = simple_energy_monitor simple_switch tuya_switch tuya_kwh_meter tuya_status tuya_multi_kwh_meter
+EXAMPLES = simple_energy_monitor simple_switch tuya_switch tuya_kwh_meter tuya_status tuya_multi_kwh_meter tuya_monitor
 
 
 examples: examples/CMakeCache.txt
