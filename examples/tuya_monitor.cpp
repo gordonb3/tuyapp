@@ -127,50 +127,8 @@ int main(int argc, char *argv[])
 
 	while (true)
 	{
-		// Calculate timeout based on state
-		struct timeval tv;
+		struct timeval tv = {0, 0};
 		time_t now = time(NULL);
-
-		switch (state) {
-		case DISCONNECTED:
-			tv.tv_sec = 10 - (now - last_connect_attempt);  // 10s between reconnect attempts
-			if (tv.tv_sec < 0) tv.tv_sec = 0;
-			tv.tv_usec = 0;
-			break;
-		case CONNECTING:
-			tv.tv_sec = 5 - (now - state_start_time);  // 5 second connect timeout
-			if (tv.tv_sec < 0) tv.tv_sec = 0;
-			tv.tv_usec = 0;
-			break;
-		case NEGOTIATING:
-			tv.tv_sec = 5 - (now - state_start_time);  // 5 second negotiation timeout
-			if (tv.tv_sec < 0) tv.tv_sec = 0;
-			tv.tv_usec = 0;
-			break;
-		case CONNECTED:
-			tv.tv_sec = 5 - (now - last_rx_time);  // Wake to send heartbeat
-			if (tv.tv_sec < 0) tv.tv_sec = 0;
-			tv.tv_usec = 0;
-			break;
-		case DISCONNECTING:
-			tv.tv_sec = 0;  // Immediate
-			tv.tv_usec = 0;
-			break;
-		}
-
-		// Single select() for all states
-		fd_set read_fds, write_fds;
-		FD_ZERO(&read_fds);
-		FD_ZERO(&write_fds);
-
-		if (sockfd >= 0) {
-			if (state == CONNECTING)
-				FD_SET(sockfd, &write_fds);
-			else
-				FD_SET(sockfd, &read_fds);
-		}
-
-		select(sockfd + 1, &read_fds, &write_fds, nullptr, &tv);
 
 		switch (state)
 		{
@@ -404,6 +362,48 @@ int main(int argc, char *argv[])
 			break;
 		}
 		}
+
+		// Calculate timeout based on state
+		switch (state) {
+		case DISCONNECTED:
+			tv.tv_sec = 10 - (now - last_connect_attempt);  // 10s between reconnect attempts
+			if (tv.tv_sec < 0) tv.tv_sec = 0;
+			tv.tv_usec = 0;
+			break;
+		case CONNECTING:
+			tv.tv_sec = 5 - (now - state_start_time);  // 5 second connect timeout
+			if (tv.tv_sec < 0) tv.tv_sec = 0;
+			tv.tv_usec = 0;
+			break;
+		case NEGOTIATING:
+			tv.tv_sec = 5 - (now - state_start_time);  // 5 second negotiation timeout
+			if (tv.tv_sec < 0) tv.tv_sec = 0;
+			tv.tv_usec = 0;
+			break;
+		case CONNECTED:
+			tv.tv_sec = 5 - (now - last_rx_time);  // Wake to send heartbeat
+			if (tv.tv_sec < 0) tv.tv_sec = 0;
+			tv.tv_usec = 0;
+			break;
+		case DISCONNECTING:
+			tv.tv_sec = 0;  // Immediate
+			tv.tv_usec = 0;
+			break;
+		}
+
+		// Single select() for all states
+		fd_set read_fds, write_fds;
+		FD_ZERO(&read_fds);
+		FD_ZERO(&write_fds);
+
+		if (sockfd >= 0) {
+			if (state == CONNECTING)
+				FD_SET(sockfd, &write_fds);
+			else
+				FD_SET(sockfd, &read_fds);
+		}
+
+		select(sockfd + 1, &read_fds, &write_fds, nullptr, &tv);
 	}
 
 	if (sockfd >= 0)
