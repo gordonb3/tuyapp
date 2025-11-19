@@ -9,7 +9,6 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
-//#define DEBUG
 
 #ifndef MAX_BUFFER_SIZE
 #define MAX_BUFFER_SIZE 1024
@@ -30,9 +29,11 @@
 #include <cmath>
 
 #include <fstream>
+#include <chrono>
 #include <thread>
 #include <mutex>
 
+bool StopRequested = false;
 
 bool get_device_by_name(const std::string name, std::string &id, std::string &key, std::string &address, std::string &version)
 {
@@ -115,7 +116,6 @@ bool monitor(std::string devicename)
 
 	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
 
-
 	int numbytes = tuyaclient->send(message_buffer, payload_len);
 	if (numbytes < 0)
 	{
@@ -147,38 +147,71 @@ bool monitor(std::string devicename)
 	std::unique_ptr<Json::CharReader> jReader(jBuilder.newCharReader());
 	jReader->parse(tuyaresponse.c_str(), tuyaresponse.c_str() + tuyaresponse.size(), &jStatus, nullptr);
 	timeval = jStatus["t"].asUInt64();
+	bool switchstate = jStatus["dps"]["1"].asBool();
 
-	while(true)
+	while (!StopRequested)
 	{
-		payload = "{\"dpId\":[19,20]}";
+		payload = "{\"dpId\":[1,19,20]}";
 		payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, payload, device_key);
 		numbytes = tuyaclient->send(message_buffer, payload_len);
 		if (numbytes < 0)
+		{
+			if (errno == EAGAIN)
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				int so_error = tuyaclient->getlasterror();
+				if ( so_error != 0)
+				{
+					writeprotect.lock();
+					std::cout << "Error writing to socket: " << so_error << "\n";
+					writeprotect.unlock();
+					return false;
+				}
+			}
+		}
+
+		numbytes = -1;
+		int i = 0;
+		while ((numbytes <= 28) && (i < 1000) && (!StopRequested))  // 10 seconds
+		{
+			i++;
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			numbytes = tuyaclient->receive(message_buffer, MAX_BUFFER_SIZE - 1, 0, false);
 			if (numbytes < 0)
 			{
-				writeprotect.lock();
-				std::cout << "Error writing to socket: " << strerror(errno) << " (" << errno << ")\n";
-				writeprotect.unlock();
-				return false;
-			}
-
-		numbytes = tuyaclient->receive(message_buffer, MAX_BUFFER_SIZE - 1);
-		if (numbytes < 0)
-		{
-			// expect a timeout because the device will only send updates when the requested values change
-			if (errno != 11)
-			{
+				// expect a timeout because the device will only send updates when the requested values change
+				if (errno == EAGAIN)
+					continue;
 				writeprotect.lock();
 				std::cout << "Error reading from socket: " << strerror(errno) << " (" << errno << ")\n";
 				writeprotect.unlock();
 				return false;
 			}
+
+			if (numbytes <= 28)
+			{
+				// device sent us a message with an empty payload - wait for one that does contain an actual payload
+				continue;
+			}
 		}
-		else
+
+		if (numbytes > 0)
 		{
 			tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
 
 			jReader->parse(tuyaresponse.c_str(), tuyaresponse.c_str() + tuyaresponse.size(), &jStatus, nullptr);
+			if (jStatus["dps"].isMember("1"))
+			{
+				bool newswitchstate = jStatus["dps"]["1"].asBool();
+				if (newswitchstate != switchstate)
+				{
+					std::string sstate = newswitchstate?"on":"off";
+					writeprotect.lock();
+					std::cout << "{\"name\":\"" << devicename << ",\"switch\":" << sstate <<  "}\n";
+					writeprotect.unlock();
+					switchstate = newswitchstate;
+				}
+			}
 			unsigned long newtimeval = jStatus["t"].asUInt64();
 			if (timeval)
 			{
@@ -189,19 +222,25 @@ bool monitor(std::string devicename)
 					float volts = (float)(decivolts)/10;
 					voltreport << ",\"volts\":" << volts;
 				}
-				writeprotect.lock();
-				std::cout << "{\"name\":\"" << devicename;
 				if (jStatus["dps"].isMember("19"))
 				{
 					unsigned int timediff = (int)(newtimeval - timeval);
 					unsigned int actual = jStatus["dps"]["19"].asUInt();
 					usage += (float)(actual * timediff) / (3600.0 * ENERGY_DIVISOR);
-					std::cout << "\",\"power\":" << (float)(actual + 0.0)/ENERGY_DIVISOR << ",\"usage\":" <<  (int)std::round(usage)<< ",\"rawusage\":" << voltreport.str() << ",\"t1\":" <<  timeval <<  ",\"t2\":" << newtimeval  <<  "}\n";
+					writeprotect.lock();
+					std::cout << "{\"name\":\"" << devicename;
+					std::cout << "\",\"power\":" << (float)(actual + 0.0)/ENERGY_DIVISOR << ",\"usage\":" <<  (int)std::round(usage)<< ",\"rawusage\":" << usage;
+					std::cout << voltreport.str() << ",\"t1\":" <<  timeval <<  ",\"t2\":" << newtimeval  <<  "}\n";
+					writeprotect.unlock();
 					timeval = newtimeval;
 				}
-				else
+				else if (jStatus["dps"].isMember("20"))
+				{
+					writeprotect.lock();
+					std::cout << "{\"name\":\"" << devicename;
 					std::cout << voltreport.str() <<  "}\n";
-				writeprotect.unlock();
+					writeprotect.unlock();
+				}
 			}
 			else
 				timeval = newtimeval;
@@ -209,10 +248,8 @@ bool monitor(std::string devicename)
 	}
 
 	delete tuyaclient;
-
 	return 0;
 }
-
 
 
 int main(int argc, char *argv[])
@@ -228,6 +265,11 @@ int main(int argc, char *argv[])
 		std::thread* t1 = new std::thread(monitor, std::string(argv[i]));
 		monitorthreads.push_back(t1);
 	}
+
+	std::cout << "Press Enter to quit\n";
+	char c;
+	std::cin.get(c);
+	StopRequested = true;
 
 	for (auto &t1 : monitorthreads)
 	{

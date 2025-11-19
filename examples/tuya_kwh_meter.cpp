@@ -10,8 +10,6 @@
  */
 
 
-//#define DEBUG
-
 #ifndef MAX_BUFFER_SIZE
 #define MAX_BUFFER_SIZE 1024
 #endif
@@ -27,6 +25,10 @@
 #include <string.h>
 #include <json/json.h>
 #include <cmath>
+#include <chrono>
+#include <thread>
+
+
 
 #include <fstream>
 
@@ -159,7 +161,7 @@ int main(int argc, char *argv[])
 	std::unique_ptr<Json::CharReader> jReader(jBuilder.newCharReader());
 	jReader->parse(tuyaresponse.c_str(), tuyaresponse.c_str() + tuyaresponse.size(), &jStatus, nullptr);
 	timeval = jStatus["t"].asUInt64();
-
+	bool switchstate = jStatus["dps"]["1"].asBool();
 
 	while(true)
 	{
@@ -167,27 +169,54 @@ int main(int argc, char *argv[])
 		payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, payload, device_key);
 		numbytes = tuyaclient->send(message_buffer, payload_len);
 		if (numbytes < 0)
-			if (numbytes < 0)
+		{
+			if (errno == EAGAIN)
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				int so_error = tuyaclient->getlasterror();
+				if ( so_error != 0)
+				{
+					std::cout << "Error writing to socket: " << so_error << "\n";
+					exit(1);
+				}
+				std::cout << "last socket state: " << so_error << "(" << errno << "(\n";
+			}
+			else
 			{
 				std::cout << "Error writing to socket: " << strerror(errno) << " (" << errno << ")\n";
 				exit(1);
 			}
+		}
 
-		numbytes = tuyaclient->receive(message_buffer, MAX_BUFFER_SIZE - 1);
-		if (numbytes < 0)
+		numbytes = -1;
+		int i = 0;
+		while ((numbytes <= 28) && (i < 1000))  // 10 seconds
 		{
-			// expect a timeout because the device will only send updates when the requested values change
-			if (errno != 11)
+			i++;
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			numbytes = tuyaclient->receive(message_buffer, MAX_BUFFER_SIZE - 1, 0, false);
+			if (numbytes < 0)
 			{
-				std::cout << "Error reading from socket: " << strerror(errno) << " (" << errno << ")\n";
+				// expect a timeout because the device will only send updates when the requested values change
+				if (errno == EAGAIN)
+					continue;
+				std::cout << "Error reading from socket: " << strerror(errno) << " (" << errno << ") (i = " << i << ")\n";
 				exit(1);
 			}
-#ifdef DEBUG
-			else
-				std::cout << "{\"msg\":\"timeout reached\",\"code\":11}\n";
-#endif
+
+			if (numbytes <= 28)
+			{
+				// device sent us a message with an empty payload - wait for one that does contain an actual payload
+				continue;
+			}
 		}
-		else
+
+#ifdef DEBUG
+		if (numbytes < 0)
+			std::cout << "{\"msg\":\"timeout reached\",\"code\":" << errno << "}\n";
+#endif
+
+		if (numbytes > 0)
 		{
 			tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
 #ifdef DEBUG
@@ -199,6 +228,16 @@ int main(int argc, char *argv[])
 #endif
 
 			jReader->parse(tuyaresponse.c_str(), tuyaresponse.c_str() + tuyaresponse.size(), &jStatus, nullptr);
+			if (jStatus["dps"].isMember("1"))
+			{
+				bool newswitchstate = jStatus["dps"]["1"].asBool();
+				if (newswitchstate != switchstate)
+				{
+					std::string sstate = newswitchstate?"on":"off";
+					std::cout << "{\"switch\":" << sstate <<  "}\n";
+					switchstate = newswitchstate;
+				}
+			}
 			unsigned long newtimeval = jStatus["t"].asUInt64();
 			if (timeval)
 			{

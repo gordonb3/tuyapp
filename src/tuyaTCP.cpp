@@ -9,7 +9,8 @@
  *	@license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
-#define SOCKET_TIMEOUT_SECS 1
+#define SOCKET_CONNECT_TIMEOUT_SECS 5
+#define SOCKET_RECEIVE_TIMEOUT_SECS 1
 
 #include "tuyaTCP.hpp"
 #include <netdb.h>
@@ -126,7 +127,7 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 
 		if (errno == EINPROGRESS)
 		{
-			if (poll(&fds, 1, SOCKET_TIMEOUT_SECS * 1000) > 0)
+			if (poll(&fds, 1, SOCKET_CONNECT_TIMEOUT_SECS * 1000) > 0)
 			{
 				// try to get socket options
 				if (getsockopt(m_sockfd, SOL_SOCKET, SO_ERROR, (char *)&so_error, &len) >= 0)
@@ -166,9 +167,9 @@ int tuyaTCP::send(unsigned char* buffer, const int size)
 // If you do not specify minsize, it will default to 28 bytes (version 3.3 message protocol)
 int tuyaTCP::receive(unsigned char* buffer, const int maxsize, const int minsize, bool waitforanswer)
 {
-	int numbytes = 0;
+	int numbytes = -1;
 	int i = 0;
-	while ((numbytes <= minsize) && (i < SOCKET_TIMEOUT_SECS * 500))
+	while ((numbytes <= minsize) && (i < SOCKET_RECEIVE_TIMEOUT_SECS * 100))
 	{
 #ifdef WIN32
 		numbytes = recv(m_sockfd, (char*)buffer, maxsize, 0 );
@@ -193,10 +194,22 @@ int tuyaTCP::receive(unsigned char* buffer, const int maxsize, const int minsize
 			std::cout << "{\"ack\":true}\n";
 		}
 #endif
-		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		i++;
 	}
 	return numbytes;
+}
+
+
+int tuyaTCP::getlasterror()
+{
+	int so_error;
+	socklen_t len = sizeof so_error;
+	if (getsockopt(m_sockfd, SOL_SOCKET, SO_ERROR, (char *)&so_error, &len) >= 0)
+	{
+		return so_error;
+	}
+	return -1;
 }
 
 

@@ -34,9 +34,10 @@ public:
 	tuyaTCP();
 	~tuyaTCP();
 
-	virtual bool ConnectToDevice(const std::string &hostname, const uint8_t retries = 5);
+	virtual bool ConnectToDevice(const std::string &hostname, const uint8_t retries = 1);
 	int send(unsigned char* buffer, const int size);
 	int receive(unsigned char* buffer, const int maxsize, const int minsize = 28, bool waitforanswer = true);
+	int getlasterror();
 	void disconnect();
 
 private:
