@@ -86,11 +86,15 @@ public:
 	// Get protocol version
 	Protocol getProtocol() const { return m_protocol; }
 
-	virtual int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) = 0;
-	virtual std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) = 0;
+	virtual void SetEncryptionKey(const std::string &key) { m_encryption_key = key; }
+	virtual bool NegotiateSession(const std::string &local_key) { SetEncryptionKey(local_key); return true; }
+
+	virtual int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload) = 0;
+	virtual std::string DecodeTuyaMessage(unsigned char* buffer, const int size) = 0;
 
 protected:
 	Protocol m_protocol;
+	std::string m_encryption_key;
 };
 
 #endif
