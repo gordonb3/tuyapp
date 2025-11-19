@@ -33,8 +33,10 @@ tuyaAPI31::tuyaAPI31()
 }
 
 
-int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key = "")
+int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key)
 {
+	const std::string &key = encryption_key.empty() ? m_device_key : encryption_key;
+
 	int bufferpos = 0;
 	memset(buffer, 0, PROTOCOL_31_HEADER_SIZE);
 	// set message prefix
@@ -55,7 +57,7 @@ int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	bufferpos += (int)PROTOCOL_31_HEADER_SIZE;
 
 	int payloadSize = (int)szPayload.length();
-	if (!encryption_key.empty())
+	if (!key.empty())
 	{
 		unsigned char* cEncryptedPayload = &buffer[bufferpos];
 		memset(cEncryptedPayload, 0, payloadSize + 16);
@@ -65,7 +67,7 @@ int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 		try
 		{
 			EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-			EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
+			EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)key.c_str(), nullptr);
 			EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)szPayload.c_str(), payloadSize);
 			encryptedSize = encryptedChars;
 			EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
@@ -85,7 +87,7 @@ int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 		std::string premd5 = "data=";
 		premd5.append((char *)cBase64Payload);
 		premd5.append("||lpv=3.1||");
-		premd5.append(encryption_key);
+		premd5.append(key);
 		std::string md5str = make_md5_digest(premd5);
 		std::string md5mid = (char *)&md5str[8];
 		std::string header = "3.1";

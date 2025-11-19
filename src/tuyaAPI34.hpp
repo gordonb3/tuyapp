@@ -30,10 +30,10 @@ public:
  ************************************************************************/
 	tuyaAPI34();
 
-	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) override;
-	std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) override;
-
-	bool ConnectToDevice(const std::string &hostname, const uint8_t retries = 5) override;
+	void SetEncryptionKey(const std::string &key) override;
+	bool NegotiateSession(const std::string &local_key) override;
+	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key = "") override;
+	std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key = "") override;
 
 private:
 	unsigned char m_session_key[16];
@@ -42,9 +42,8 @@ private:
 	bool m_session_established;
 	uint32_t m_seqno;
 
-	bool NegotiateSession(const std::string &local_key);
-	int BuildSessionMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key);
-	std::string DecodeSessionMessage(unsigned char* buffer, const int size, const std::string &encryption_key);
+	int BuildSessionMessage(unsigned char *buffer, const uint8_t command, const std::string &payload);
+	std::string DecodeSessionMessage(unsigned char* buffer, const int size);
 
 };
 #endif // _tuyaAPI34

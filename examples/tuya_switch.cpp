@@ -113,18 +113,19 @@ int main(int argc, char *argv[])
 	if (!tuyaclient->ConnectToDevice(device_address))
 		error("ERROR connecting");
 
+	if (!tuyaclient->NegotiateSession(device_key))
+	{
+		std::cout << "Error negotiating session\n";
+		exit(1);
+	}
+
 	std::string s_switchstate = std::string(argv[2]);
 	int countdown = 0;
 	if (argc > 3)
 		countdown = atoi(argv[3]);
 
 	std::string payload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
-	if (payload_len < 0)
-	{
-		std::cout << "Error negotiating session, socket returned:"  << strerror(tuyaclient->getlasterror()) << " (" << tuyaclient->getlasterror() << ")\n";
-		exit(1);
-	}
+	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload);
 
 	int numbytes = tuyaclient->send(message_buffer, payload_len);
 	if (numbytes < 0)
@@ -134,7 +135,7 @@ int main(int argc, char *argv[])
 	if (numbytes < 0)
 		error("ERROR reading from socket");
 
-	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
+	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes);
 
 #ifdef APPDEBUG
 	std::cout << "dbg: raw answer: ";
@@ -203,7 +204,7 @@ int main(int argc, char *argv[])
 	if (numbytes < 0)
 		error("ERROR reading from socket");
 
-	tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
+	tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes);
 #ifdef APPDEBUG
 	std::cout << "dbg: raw encrypted answer: ";
 	for(int i=0; i<numbytes; ++i)
