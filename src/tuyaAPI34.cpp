@@ -205,20 +205,6 @@ std::string tuyaAPI34::DecodeTuyaMessage(unsigned char* buffer, const int size)
 }
 
 
-bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
-{
-	// Use base class connection
-	if (!tuyaAPI::ConnectToDevice(hostname, retries))
-		return false;
-
-	// Protocol 3.4 requires session negotiation
-	// Session will be negotiated on first message
-	m_session_established = false;
-	m_seqno = 0;
-	return true;
-}
-
-
 int tuyaAPI34::BuildSessionMessage(unsigned char *buffer)
 {
 	uint8_t command;
