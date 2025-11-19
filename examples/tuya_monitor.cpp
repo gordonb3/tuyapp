@@ -170,10 +170,7 @@ int main(int argc, char *argv[])
 				FD_SET(sockfd, &read_fds);
 		}
 
-		int ret = select(sockfd + 1, &read_fds, &write_fds, nullptr, &tv);
-
-		bool can_read = (ret > 0 && sockfd >= 0 && FD_ISSET(sockfd, &read_fds));
-		bool can_write = (ret > 0 && sockfd >= 0 && FD_ISSET(sockfd, &write_fds));
+		select(sockfd + 1, &read_fds, &write_fds, nullptr, &tv);
 
 		switch (state)
 		{
@@ -238,8 +235,15 @@ int main(int argc, char *argv[])
 				continue;
 			}
 
-			if (!can_write)
-				break;
+			// Check if socket is writable (connection complete)
+			fd_set write_fds;
+			FD_ZERO(&write_fds);
+			FD_SET(sockfd, &write_fds);
+			struct timeval tv = {0, 0};
+			int ret = select(sockfd + 1, nullptr, &write_fds, nullptr, &tv);
+
+			if (ret <= 0 || !FD_ISSET(sockfd, &write_fds))
+				break;  // Not ready yet
 
 			// Socket is writable - check if connection succeeded
 			int error = 0;
@@ -302,51 +306,49 @@ int main(int argc, char *argv[])
 			// If not yet established, do negotiation work
 			if (!tuyaclient->isSessionEstablished()) {
 				// Read response
-				if (can_read) {
-					ssize_t len = read(sockfd, message_buffer, sizeof(message_buffer));
-					if (len > 0) {
+				ssize_t len = read(sockfd, message_buffer, sizeof(message_buffer));
+				if (len > 0) {
 #ifdef DEBUG
-						std::cout << "Received negotiation response: " << len << " bytes\n";
+					std::cout << "Received negotiation response: " << len << " bytes\n";
 #endif
-						tuyaclient->DecodeSessionMessage(message_buffer, len);
+					tuyaclient->DecodeSessionMessage(message_buffer, len);
 
-						if (tuyaclient->isSessionEstablished()) {
-							std::cout << "Negotiation complete\n";
-							state = CONNECTED;
-							last_rx_time = time(NULL);
-						} else {
-							unsigned char session_msg[MAX_BUFFER_SIZE];
-							int session_len = tuyaclient->BuildSessionMessage(session_msg);
-							if (session_len < 0) {
-								std::cerr << "Negotiation failed\n";
+					if (tuyaclient->isSessionEstablished()) {
+						std::cout << "Negotiation complete\n";
+						state = CONNECTED;
+						last_rx_time = time(NULL);
+					} else {
+						unsigned char session_msg[MAX_BUFFER_SIZE];
+						int session_len = tuyaclient->BuildSessionMessage(session_msg);
+						if (session_len < 0) {
+							std::cerr << "Negotiation failed\n";
+							state = DISCONNECTING;
+							continue;
+						} else if (session_len > 0) {
+							// Send immediately
+							ssize_t sent = write(sockfd, session_msg, session_len);
+							if (sent > 0) {
+#ifdef DEBUG
+								std::cout << "Sent negotiation packet: " << sent << " bytes\n";
+#endif
+
+								// Check if negotiation complete
+								if (tuyaclient->isSessionEstablished()) {
+									std::cout << "Negotiation complete\n";
+									state = CONNECTED;
+									last_rx_time = time(NULL);
+								}
+							} else if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+								std::cerr << "Write error: " << strerror(errno) << "\n";
 								state = DISCONNECTING;
 								continue;
-							} else if (session_len > 0) {
-								// Send immediately
-								ssize_t sent = write(sockfd, session_msg, session_len);
-								if (sent > 0) {
-#ifdef DEBUG
-									std::cout << "Sent negotiation packet: " << sent << " bytes\n";
-#endif
-
-									// Check if negotiation complete
-									if (tuyaclient->isSessionEstablished()) {
-										std::cout << "Negotiation complete\n";
-										state = CONNECTED;
-										last_rx_time = time(NULL);
-									}
-								} else if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-									std::cerr << "Write error: " << strerror(errno) << "\n";
-									state = DISCONNECTING;
-									continue;
-								}
 							}
 						}
-					} else if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-						std::cerr << "Read error: " << strerror(errno) << "\n";
-						state = DISCONNECTING;
-						continue;
 					}
+				} else if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+					std::cerr << "Read error: " << strerror(errno) << "\n";
+					state = DISCONNECTING;
+					continue;
 				}
 			}
 
@@ -370,23 +372,21 @@ int main(int argc, char *argv[])
 		case CONNECTED:
 		{
 			// Check for incoming data
-			if (can_read) {
-				ssize_t len = read(sockfd, message_buffer, sizeof(message_buffer));
-				if (len > 0) {
-					last_rx_time = time(NULL);
-					std::string decoded = tuyaclient->DecodeTuyaMessage(message_buffer, len);
-					if (!decoded.empty()) {
-						std::cout << "Received: " << decoded << "\n";
-					}
-				} else if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-					std::cerr << "Read error: " << strerror(errno) << "\n";
-					state = DISCONNECTING;
-					continue;
-				} else if (len == 0) {
-					std::cout << "Connection closed by device\n";
-					state = DISCONNECTING;
-					continue;
+			ssize_t len = read(sockfd, message_buffer, sizeof(message_buffer));
+			if (len > 0) {
+				last_rx_time = time(NULL);
+				std::string decoded = tuyaclient->DecodeTuyaMessage(message_buffer, len);
+				if (!decoded.empty()) {
+					std::cout << "Received: " << decoded << "\n";
 				}
+			} else if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+				std::cerr << "Read error: " << strerror(errno) << "\n";
+				state = DISCONNECTING;
+				continue;
+			} else if (len == 0) {
+				std::cout << "Connection closed by device\n";
+				state = DISCONNECTING;
+				continue;
 			}
 
 			// Send heartbeat if no data for 5 seconds
