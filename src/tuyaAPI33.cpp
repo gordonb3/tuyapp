@@ -18,7 +18,6 @@
 
 #include "tuyaAPI33.hpp"
 #include <cstring>
-#include <openssl/evp.h>
 #include "crypt/crc32.hpp"
 
 #ifdef DEBUG
@@ -69,23 +68,9 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	int payloadSize = (int)szPayload.length();
 	memset(cEncryptedPayload, 0, payloadSize + 16);
 	int encryptedSize = 0;
-	int encryptedChars = 0;
 
-	try
-	{
-		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)key.c_str(), nullptr);
-		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)szPayload.c_str(), payloadSize);
-		encryptedSize = encryptedChars;
-		EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
-		encryptedSize += encryptedChars;
-		EVP_CIPHER_CTX_free(ctx);
-	}
-	catch (const std::exception& e)
-	{
-		// encryption failure
+	if (aes_128_ecb_encrypt((unsigned char*)key.c_str(), (unsigned char*)szPayload.c_str(), payloadSize, cEncryptedPayload, &encryptedSize) != 0)
 		return -1;
-	}
 
 #ifdef DEBUG
 	std::cout << "dbg: encrypted payload (size=" << encryptedSize << "): ";
@@ -171,20 +156,12 @@ std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 			unsigned char* cDecryptedPayload = new unsigned char[payloadSize + 16];
 			memset(cDecryptedPayload, 0, payloadSize + 16);
 			int decryptedSize = 0;
-			int decryptedChars = 0;
 
-			try
+			if (aes_128_ecb_decrypt((unsigned char*)key.c_str(), cEncryptedPayload, payloadSize, cDecryptedPayload, &decryptedSize) == 0)
 			{
-				EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-				EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)key.c_str(), nullptr);
-				EVP_DecryptUpdate(ctx, cDecryptedPayload, &decryptedChars, cEncryptedPayload, payloadSize);
-				decryptedSize = decryptedChars;
-				EVP_DecryptFinal_ex(ctx, cDecryptedPayload + decryptedSize, &decryptedChars);
-				decryptedSize += decryptedChars;
-				EVP_CIPHER_CTX_free(ctx);
 				result.append((char*)cDecryptedPayload);
 			}
-			catch (const std::exception& e)
+			else
 			{
 				result.append("{\"msg\":\"error decrypting payload\"}");
 			}

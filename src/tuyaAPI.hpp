@@ -99,6 +99,13 @@ public:
 
 //	virtual unsigned long crc32(unsigned long crc, uint8_t const data[], uint32_t const len) { return 0;};
 
+	// Crypto utility methods
+	int aes_128_ecb_encrypt(const unsigned char *key, const unsigned char *input, int input_len, unsigned char *output, int *output_len);
+	int aes_128_ecb_decrypt(const unsigned char *key, const unsigned char *input, int input_len, unsigned char *output, int *output_len);
+	void hmac_sha256(const unsigned char *key, int key_len, const unsigned char *data, int data_len, unsigned char *output);
+	void md5_hash(const unsigned char *data, int data_len, unsigned char *output);
+	void random_bytes(unsigned char *buffer, int len);
+
 protected:
 	Protocol m_protocol;
 	std::string m_device_key;
