@@ -37,8 +37,6 @@ public:
 	int BuildSessionMessage(unsigned char *buffer) override;
 	std::string DecodeSessionMessage(unsigned char* buffer, const int size) override;
 
-	bool ConnectToDevice(const std::string &hostname, const uint8_t retries = 5) override;
-
 private:
 	unsigned char m_session_key[16];
 	unsigned char m_local_nonce[16];
