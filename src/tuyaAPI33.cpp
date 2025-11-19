@@ -17,11 +17,11 @@
 #define MESSAGE_TRAILER_SIZE 8
 
 #include "tuyaAPI33.hpp"
-#include <zlib.h>
 #include <cstring>
-#include <openssl/evp.h>
-#include <openssl/err.h>
-#include <openssl/ssl.h>
+
+#ifdef DEBUG
+#include <iostream>
+#endif
 
 #ifdef DEBUG
 #include <iostream>
@@ -61,23 +61,9 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	int payloadSize = (int)szPayload.length();
 	memset(cEncryptedPayload, 0, payloadSize + 16);
 	int encryptedSize = 0;
-	int encryptedChars = 0;
 
-	try
-	{
-		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)m_encryption_key.c_str(), nullptr);
-		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)szPayload.c_str(), payloadSize);
-		encryptedSize = encryptedChars;
-		EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
-		encryptedSize += encryptedChars;
-		EVP_CIPHER_CTX_free(ctx);
-	}
-	catch (const std::exception& e)
-	{
-		// encryption failure
+	if (aes_128_ecb_encrypt((unsigned char*)m_encryption_key.c_str(), (unsigned char*)szPayload.c_str(), payloadSize, cEncryptedPayload, &encryptedSize) != 0)
 		return -1;
-	}
 
 #ifdef DEBUG
 	std::cout << "dbg: encrypted payload (size=" << encryptedSize << "): ";
@@ -95,8 +81,7 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	buffer[15] = (buffersize - PROTOCOL_33_HEADER_SIZE) & 0x000000FF;
 
 	// calculate CRC
-	unsigned long crc = crc32(0L, Z_NULL, 0);
-	crc = crc32(crc, buffer, bufferpos) & 0xFFFFFFFF;
+	uint32_t crc = crc32_compute(buffer, bufferpos);
 
 	// fill the message trailer
 	cMessageTrailer[0] = (crc & 0xFF000000) >> 24;
@@ -144,8 +129,7 @@ std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size)
 
 		// verify crc
 		unsigned int crc_sent = ((uint8_t)cTuyaResponse[messageSize - 8] << 24) + ((uint8_t)cTuyaResponse[messageSize - 7] << 16) + ((uint8_t)cTuyaResponse[messageSize - 6] << 8) + (uint8_t)cTuyaResponse[messageSize - 5];
-		unsigned int crc = crc32(0L, Z_NULL, 0) & 0xFFFFFFFF;
-		crc = crc32(crc, cTuyaResponse, messageSize - 8) & 0xFFFFFFFF;
+		uint32_t crc = crc32_compute(cTuyaResponse, messageSize - 8);
 
 		if (crc == crc_sent)
 		{
@@ -161,20 +145,12 @@ std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size)
 			unsigned char* cDecryptedPayload = new unsigned char[payloadSize + 16];
 			memset(cDecryptedPayload, 0, payloadSize + 16);
 			int decryptedSize = 0;
-			int decryptedChars = 0;
 
-			try
+			if (aes_128_ecb_decrypt((unsigned char*)m_encryption_key.c_str(), cEncryptedPayload, payloadSize, cDecryptedPayload, &decryptedSize) == 0)
 			{
-				EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-				EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)m_encryption_key.c_str(), nullptr);
-				EVP_DecryptUpdate(ctx, cDecryptedPayload, &decryptedChars, cEncryptedPayload, payloadSize);
-				decryptedSize = decryptedChars;
-				EVP_DecryptFinal_ex(ctx, cDecryptedPayload + decryptedSize, &decryptedChars);
-				decryptedSize += decryptedChars;
-				EVP_CIPHER_CTX_free(ctx);
 				result.append((char*)cDecryptedPayload);
 			}
-			catch (const std::exception& e)
+			else
 			{
 				result.append("{\"msg\":\"error decrypting payload\"}");
 			}
