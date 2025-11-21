@@ -165,8 +165,19 @@ int main(int argc, char *argv[])
 
 	while(true)
 	{
-		payload = "{\"dpId\":[1,19]}";
-		payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, payload, device_key);
+		if (numbytes > 0)
+		{
+			// received data => make new request for data point updates for switch state, power and voltage
+			payload = "{\"dpId\":[1,19]}";
+			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, payload, device_key);
+		}
+		else
+		{
+			// send heart beat to keep connection alive
+			payload = "{\"gwId\":\"" + device_id + "\",\"devId\":\"" + device_id + "\"}";
+			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_HEART_BEAT, payload, device_key);
+		}
+
 		numbytes = tuyaclient->send(message_buffer, payload_len);
 		if (numbytes < 0)
 		{

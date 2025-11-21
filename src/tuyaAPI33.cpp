@@ -27,6 +27,14 @@
 #include <iostream>
 #endif
 
+
+tuyaAPI33::tuyaAPI33()
+{
+	m_protocol = Protocol::v33;
+	m_seqno = 0;
+}
+
+
 int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key)
 {
 	int bufferpos = 0;
@@ -36,6 +44,14 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	buffer[1] = (MESSAGE_PREFIX & 0x00FF0000) >> 16;
 	buffer[2] = (MESSAGE_PREFIX & 0x0000FF00) >> 8;
 	buffer[3] = (MESSAGE_PREFIX & 0x000000FF);
+
+	// set message sequence number
+	m_seqno++;
+	buffer[4] = (m_seqno & 0xFF000000) >> 24;
+	buffer[5] = (m_seqno & 0x00FF0000) >> 16;
+	buffer[6] = (m_seqno & 0x0000FF00) >> 8;
+	buffer[7] = (m_seqno & 0x000000FF);
+
 	// set command code at int32 @msg[8] (single byte value @msg[11])
 	buffer[11] = command;
 	bufferpos += (int)PROTOCOL_33_HEADER_SIZE;

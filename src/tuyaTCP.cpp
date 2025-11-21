@@ -81,6 +81,7 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 	int set = 1;
 	setsockopt(m_sockfd, IPPROTO_TCP, TCP_NODELAY,  (char*) &set, sizeof(set) );
 
+	struct timeval tv = {0, 0};
 	fd_set fdw, fdr, fde;
 	FD_ZERO(&fdw);
 	FD_ZERO(&fdr);
@@ -103,8 +104,10 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 	int so_error;
 	socklen_t len = sizeof so_error;
 	serv_addr.sin_port = htons(TUYA_COMMAND_PORT);
-	for (uint8_t i = 0; i < retries; i++)
+	uint8_t i = 0;
+	while (i < retries)
 	{
+		i++;
 #ifdef WIN32
 		if (connect(m_sockfd, (const sockaddr*)&serv_addr, sizeof(serv_addr)) == 0)
 			return true;
@@ -145,7 +148,8 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 		else
 			exit_error("ERROR, connection failed");
 #endif
-		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+		if (i < retries)
+			std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	}
 	return false;
 }
@@ -154,10 +158,11 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 int tuyaTCP::send(unsigned char* buffer, const int size)
 {
 #ifdef WIN32
-	return ::send(m_sockfd, (char*)buffer, size, 0);
+	int result = ::send(m_sockfd, (char*)buffer, size, 0);
 #else
-	return write(m_sockfd, buffer, size);
+	int result = write(m_sockfd, buffer, size);
 #endif
+	return result;
 }
 
 

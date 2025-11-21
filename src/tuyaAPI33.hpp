@@ -23,10 +23,13 @@ class tuyaAPI33 : public tuyaAPI
 {
 
 public:
-	tuyaAPI33() { m_protocol = Protocol::v33; }
+	tuyaAPI33();
 
 	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) override;
 	std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) override;
+
+private:
+	uint32_t m_seqno;
 
 };
 #endif // _tuyaAPI33
