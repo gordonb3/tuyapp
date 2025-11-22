@@ -35,14 +35,18 @@ tuyaAPI34::tuyaAPI34()
 	m_seqno = 0;
 }
 
+void tuyaAPI34::SetEncryptionKey(const std::string &key)
+{
+	tuyaAPI::SetEncryptionKey(key);
+	m_session_established = false;
+	m_seqno = 0;
+	RAND_bytes(m_local_nonce, 16);
+}
 
-int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key)
+int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload)
 {
 	if (!m_session_established)
-	{
-		if (!NegotiateSession(encryption_key))
-			return -1;
-	}
+		return -1;
 
 	m_seqno++;
 
@@ -120,7 +124,7 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 }
 
 
-std::string tuyaAPI34::DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key)
+std::string tuyaAPI34::DecodeTuyaMessage(unsigned char* buffer, const int size)
 {
 	if (!m_session_established)
 		return "{\"msg\":\"session not established\"}";
@@ -201,41 +205,56 @@ std::string tuyaAPI34::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 }
 
 
-bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
+int tuyaAPI34::BuildSessionMessage(unsigned char *buffer)
 {
-	// Use base class connection
-	if (!tuyaAPI::ConnectToDevice(hostname, retries))
-		return false;
+	uint8_t command;
+	std::string payload;
 
-	// Protocol 3.4 requires session negotiation
-	// Session will be negotiated on first message
-	m_session_established = false;
-	m_seqno = 0;
-	return true;
-}
+	if (m_seqno == 0)
+	{
+		// Send first message: local nonce
+#ifdef DEBUG
+		std::cout << "dbg: Starting session negotiation\n";
+#endif
+		m_seqno = 1;
+		command = 3;
+		payload = std::string((char*)m_local_nonce, 16);
+	}
+	else if (m_seqno == 1)
+	{
+		// After receiving response, send second message
+		unsigned char rkey_hmac[32];
+		unsigned int hmac_len;
+		HMAC(EVP_sha256(), (unsigned char*)m_encryption_key.c_str(), m_encryption_key.length(),
+		     m_remote_nonce, 16, rkey_hmac, &hmac_len);
 
+		m_seqno = 2;
+		m_session_established = true;
+		command = 5;
+		payload = std::string((char*)rkey_hmac, 32);
+	}
+	else
+	{
+		// Session complete
+		return 0;
+	}
 
-/* private */ int tuyaAPI34::BuildSessionMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key)
-{
-	static uint32_t session_seqno = 1;
-
+	// Build the session message
 	int bufferpos = 0;
 	memset(buffer, 0, PROTOCOL_34_HEADER_SIZE);
 	buffer[0] = (MESSAGE_PREFIX & 0xFF000000) >> 24;
 	buffer[1] = (MESSAGE_PREFIX & 0x00FF0000) >> 16;
 	buffer[2] = (MESSAGE_PREFIX & 0x0000FF00) >> 8;
 	buffer[3] = (MESSAGE_PREFIX & 0x000000FF);
-	buffer[4] = (session_seqno & 0xFF000000) >> 24;
-	buffer[5] = (session_seqno & 0x00FF0000) >> 16;
-	buffer[6] = (session_seqno & 0x0000FF00) >> 8;
-	buffer[7] = (session_seqno & 0x000000FF);
+	buffer[4] = (m_seqno & 0xFF000000) >> 24;
+	buffer[5] = (m_seqno & 0x00FF0000) >> 16;
+	buffer[6] = (m_seqno & 0x0000FF00) >> 8;
+	buffer[7] = (m_seqno & 0x000000FF);
 	buffer[11] = command;
 	bufferpos += (int)PROTOCOL_34_HEADER_SIZE;
 
-	session_seqno++;  // Increment by 1 for next message
-
 	unsigned char* cEncryptedPayload = &buffer[bufferpos];
-	int payloadSize = (int)szPayload.length();
+	int payloadSize = (int)payload.length();
 	memset(cEncryptedPayload, 0, payloadSize + 16);
 	int encryptedSize = 0;
 	int encryptedChars = 0;
@@ -243,8 +262,8 @@ bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
 	try
 	{
 		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
-		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)szPayload.c_str(), payloadSize);
+		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)m_encryption_key.c_str(), nullptr);
+		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)payload.c_str(), payloadSize);
 		encryptedSize = encryptedChars;
 		EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
 		encryptedSize += encryptedChars;
@@ -264,7 +283,7 @@ bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
 
 	// Calculate HMAC-SHA256
 	unsigned int hmac_len;
-	HMAC(EVP_sha256(), (unsigned char*)encryption_key.c_str(), encryption_key.length(),
+	HMAC(EVP_sha256(), (unsigned char*)m_encryption_key.c_str(), m_encryption_key.length(),
 	     buffer, bufferpos, cMessageTrailer, &hmac_len);
 
 	cMessageTrailer[32] = (MESSAGE_SUFFIX & 0xFF000000) >> 24;
@@ -283,8 +302,9 @@ bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
 }
 
 
-/* private */ std::string tuyaAPI34::DecodeSessionMessage(unsigned char* buffer, const int size, const std::string &encryption_key)
+std::string tuyaAPI34::DecodeSessionMessage(unsigned char* buffer, const int size)
 {
+	// Decrypt the session response
 	std::string result;
 	unsigned char* cTuyaResponse = buffer;
 	int messageSize = (int)((uint8_t)cTuyaResponse[15] + ((uint8_t)cTuyaResponse[14] << 8) + PROTOCOL_34_HEADER_SIZE);
@@ -301,7 +321,7 @@ bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
 	try
 	{
 		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-		EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
+		EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)m_encryption_key.c_str(), nullptr);
 		EVP_DecryptUpdate(ctx, cDecryptedPayload, &decryptedChars, cEncryptedPayload, payloadSize);
 		decryptedSize = decryptedChars;
 		EVP_DecryptFinal_ex(ctx, cDecryptedPayload + decryptedSize, &decryptedChars);
@@ -315,159 +335,49 @@ bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
 	}
 
 	delete[] cDecryptedPayload;
-	return result;
-}
 
-
-/* private */ bool tuyaAPI34::NegotiateSession(const std::string &local_key)
-{
-#ifdef DEBUG
-	std::cout << "dbg: NegotiateSession called\n";
-#endif
-	unsigned char buffer[1024];
-
-	RAND_bytes(m_local_nonce, 16);
-
-#ifdef DEBUG
-	std::cout << "dbg: Starting session negotiation\n";
-#endif
-
-	int msgSize = BuildSessionMessage(buffer, 3, std::string((char*)m_local_nonce, 16), local_key);
-	if (msgSize < 0)
+	// Process the decrypted response based on state
+	if (m_seqno == 1 && result.length() >= 48)
 	{
+		// Extract remote_nonce (first 16 bytes)
+		memcpy(m_remote_nonce, result.c_str(), 16);
+
+		// Verify HMAC(local_key, local_nonce) matches bytes 16-47
+		unsigned char hmac_check[32];
+		unsigned int hmac_check_len;
+		HMAC(EVP_sha256(), (unsigned char*)m_encryption_key.c_str(), m_encryption_key.length(),
+		     m_local_nonce, 16, hmac_check, &hmac_check_len);
+
+		if (memcmp(hmac_check, (unsigned char*)result.c_str() + 16, 32) != 0)
+		{
 #ifdef DEBUG
-		std::cout << "dbg: Failed to build session message 1\n";
+			std::cout << "dbg: HMAC verification failed!\n";
 #endif
-		return false;
-	}
+			return "";
+		}
 
-	if (send(buffer, msgSize) < 0)
-	{
-#ifdef DEBUG
-		std::cout << "dbg: Failed to send session message 1\n";
-#endif
-		return false;
-	}
+		// XOR local and remote nonces
+		unsigned char xor_nonce[16];
+		for (int i = 0; i < 16; i++)
+			xor_nonce[i] = m_local_nonce[i] ^ m_remote_nonce[i];
 
-#ifdef DEBUG
-	std::cout << "dbg: Waiting for session response\n";
-#endif
-
-	int recvSize = receive(buffer, sizeof(buffer), 0);
-
-#ifdef DEBUG
-	std::cout << "dbg: receive() returned " << recvSize << "\n";
-#endif
-
-	if (recvSize < 0)
-	{
-#ifdef DEBUG
-		std::cout << "dbg: Failed to receive session response\n";
-#endif
-		return false;
-	}
-
-#ifdef DEBUG
-	std::cout << "dbg: Received " << recvSize << " bytes\n";
-#endif
-
-	std::string response = DecodeSessionMessage(buffer, recvSize, local_key);
-	if (response.length() < 48)
-	{
-#ifdef DEBUG
-		std::cout << "dbg: Response too short: " << response.length() << " bytes\n";
-#endif
-		return false;
-	}
-
-#ifdef DEBUG
-	std::cout << "dbg: Decrypted response (" << response.length() << " bytes): ";
-	for(size_t i=0; i<response.length() && i<48; ++i)
-		printf("%.2x", (unsigned char)response[i]);
-	std::cout << "\n";
-#endif
-
-	// Extract remote_nonce (first 16 bytes) - it's ASCII hex string, use it directly
-	memcpy(m_remote_nonce, response.c_str(), 16);
-
-	// Verify HMAC(local_key, local_nonce) matches bytes 16-47
-	unsigned char hmac_check[32];
-	unsigned int hmac_check_len;
-	HMAC(EVP_sha256(), (unsigned char*)local_key.c_str(), local_key.length(),
-	     m_local_nonce, 16, hmac_check, &hmac_check_len);
-
-	if (memcmp(hmac_check, (unsigned char*)response.c_str() + 16, 32) != 0)
-	{
-#ifdef DEBUG
-		std::cout << "dbg: HMAC verification failed!\n";
-		std::cout << "dbg: Expected: ";
-		for(int i=0; i<32; ++i) printf("%.2x", hmac_check[i]);
-		std::cout << "\ndbg: Got: ";
-		for(int i=0; i<32; ++i) printf("%.2x", (unsigned char)response[16+i]);
-		std::cout << "\n";
-#endif
-		return false;
-	}
-
-#ifdef DEBUG
-	std::cout << "dbg: HMAC verification passed\n";
-	std::cout << "dbg: remote_nonce: ";
-	for(int i=0; i<16; ++i) printf("%.2x", m_remote_nonce[i]);
-	std::cout << "\n";
-#endif
-
-	// XOR local and remote nonces
-	unsigned char xor_nonce[16];
-	for (int i = 0; i < 16; i++)
-		xor_nonce[i] = m_local_nonce[i] ^ m_remote_nonce[i];
-
-	// Encrypt XOR'd nonce with local_key using ECB to get session key
-	try
-	{
+		// Encrypt XOR'd nonce with local_key using ECB to get session key
 		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
 		int outlen;
-		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)local_key.c_str(), nullptr);
+		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)m_encryption_key.c_str(), nullptr);
 		EVP_EncryptUpdate(ctx, m_session_key, &outlen, xor_nonce, 16);
 		EVP_EncryptFinal_ex(ctx, m_session_key + outlen, &outlen);
 		EVP_CIPHER_CTX_free(ctx);
-	}
-	catch (const std::exception& e)
-	{
-		return false;
-	}
 
 #ifdef DEBUG
-	std::cout << "dbg: Session key: ";
-	for(int i=0; i<16; ++i)
-		printf("%.2x", (uint8_t)m_session_key[i]);
-	std::cout << "\n";
+		std::cout << "dbg: Session key: ";
+		for(int i=0; i<16; ++i)
+			printf("%.2x", (uint8_t)m_session_key[i]);
+		std::cout << "\n";
 #endif
-
-	// Second session message: send HMAC of remote nonce
-	unsigned char rkey_hmac[32];
-	unsigned int hmac_len;
-	HMAC(EVP_sha256(), (unsigned char*)local_key.c_str(), local_key.length(),
-	     m_remote_nonce, 16, rkey_hmac, &hmac_len);
-
-	msgSize = BuildSessionMessage(buffer, 5, std::string((char*)rkey_hmac, 32), local_key);
-	if (msgSize < 0 || send(buffer, msgSize) < 0)
-	{
-#ifdef DEBUG
-		std::cout << "dbg: Failed to send session message 2\n";
-#endif
-		return false;
 	}
 
-	// Try to receive any response (might be empty/ack)
-	std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-#ifdef DEBUG
-	std::cout << "dbg: Session negotiation complete\n";
-#endif
-
-	m_session_established = true;
-	m_seqno = 2;  // Session used seqno 1 and 2, start data at 3
-	return true;
+	return result;
 }
 
 

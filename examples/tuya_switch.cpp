@@ -117,6 +117,8 @@ int main(int argc, char *argv[])
 	if (!tuyaclient->ConnectToDevice(device_address))
 		error("ERROR connecting");
 
+	tuyaclient->NegotiateSession(device_key);
+
 	std::string s_switchstate = std::string(argv[2]);
 	int countdown = 0;
 	if (argc > 3)
@@ -127,7 +129,7 @@ int main(int argc, char *argv[])
 	ss_payload << "{\"gwId\":\"" << device_id << "\",\"devId\":\"" << device_id << "\",\"uid\":\"" << device_id << "\",\"t\":\"" << currenttime << "\"}";
 	std::string payload = ss_payload.str();
 
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
+	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload);
 
 
 	int numbytes = tuyaclient->send(message_buffer, payload_len);
@@ -138,7 +140,7 @@ int main(int argc, char *argv[])
 	if (numbytes < 0)
 		error("ERROR reading from socket");
 
-	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
+	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes);
 
 #ifdef DEBUG
 	std::cout << "dbg: raw answer: ";
@@ -203,7 +205,7 @@ int main(int argc, char *argv[])
 
 	payload_len = tuyaclient->BuildTuyaMessage(message_buffer,
 		(tuyaclient->getProtocol() == tuyaAPI::Protocol::v34) ? TUYA_CONTROL_NEW : TUYA_CONTROL,
-		payload, device_key);
+		payload);
 
 #ifdef DEBUG
 		std::cout << "sending message: ";
@@ -220,7 +222,7 @@ int main(int argc, char *argv[])
 	if (numbytes < 0)
 		error("ERROR reading from socket");
 
-	tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
+	tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes);
 #ifdef DEBUG
 	std::cout << "dbg: raw encrypted answer: ";
 	for(int i=0; i<numbytes; ++i)
