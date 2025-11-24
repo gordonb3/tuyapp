@@ -19,9 +19,16 @@
 #include "tuyaAPI33.hpp"
 #include <zlib.h>
 #include <cstring>
+
+#ifdef ARDUINO
+#include "mbedtls/aes.h"
+#include <Arduino_CRC32.h>
+Arduino_CRC32 Crc32;
+#else
 #include <openssl/evp.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#endif
 
 #ifdef DEBUG
 #include <iostream>
@@ -35,7 +42,7 @@ tuyaAPI33::tuyaAPI33()
 }
 
 
-int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key)
+int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &szEncryptionkey)
 {
 	int bufferpos = 0;
 	memset(buffer, 0, PROTOCOL_33_HEADER_SIZE);
@@ -67,6 +74,23 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 
 	unsigned char* cEncryptedPayload = &buffer[bufferpos];
 	int payloadSize = (int)szPayload.length();
+
+#ifdef ARDUINO
+	std::string szPaddedPayload = szPayload;
+	uint8_t padding = 16 - (payloadSize % 16);
+	for (int i = 0; i < padding; i++)
+		szPaddedPayload += (char)padding;
+	int encryptedSize = (int)szPaddedPayload.length();
+	for (int i = 0; i < encryptedSize / 16; ++i)
+	{
+		mbedtls_aes_context aes;
+		mbedtls_aes_init(&aes);
+		mbedtls_aes_setkey_enc(&aes, (const unsigned char *)szEncryptionkey.c_str(), 128 );
+		mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_ENCRYPT, (const unsigned char *)szPaddedPayload.c_str() + i * 16, &cEncryptedPayload[i * 16]);
+		mbedtls_aes_free(&aes);
+	}
+
+#else
 	memset(cEncryptedPayload, 0, payloadSize + 16);
 	int encryptedSize = 0;
 	int encryptedChars = 0;
@@ -74,7 +98,7 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	try
 	{
 		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
+		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)szEncryptionkey.c_str(), nullptr);
 		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)szPayload.c_str(), payloadSize);
 		encryptedSize = encryptedChars;
 		EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
@@ -86,6 +110,9 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 		// encryption failure
 		return -1;
 	}
+#endif
+
+
 
 #ifdef DEBUG
 	std::cout << "dbg: encrypted payload (size=" << encryptedSize << "): ";
@@ -103,8 +130,12 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	buffer[15] = (buffersize - PROTOCOL_33_HEADER_SIZE) & 0x000000FF;
 
 	// calculate CRC
+#ifdef ARDUINO
+	unsigned long crc = Crc32.calc(buffer, bufferpos) & 0xFFFFFFFF;
+#else
 	unsigned long crc = crc32(0L, Z_NULL, 0);
 	crc = crc32(crc, buffer, bufferpos) & 0xFFFFFFFF;
+#endif
 
 	// fill the message trailer
 	cMessageTrailer[0] = (crc & 0xFF000000) >> 24;
@@ -128,7 +159,7 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 }
 
 
-std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key)
+std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &szEncryptionkey)
 {
 	std::string result;
 
@@ -152,8 +183,12 @@ std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 
 		// verify crc
 		unsigned int crc_sent = ((uint8_t)cTuyaResponse[messageSize - 8] << 24) + ((uint8_t)cTuyaResponse[messageSize - 7] << 16) + ((uint8_t)cTuyaResponse[messageSize - 6] << 8) + (uint8_t)cTuyaResponse[messageSize - 5];
+#ifdef ARDUINO
+		unsigned long crc = Crc32.calc(cTuyaResponse, messageSize - 8) & 0xFFFFFFFF;
+#else
 		unsigned int crc = crc32(0L, Z_NULL, 0) & 0xFFFFFFFF;
 		crc = crc32(crc, cTuyaResponse, messageSize - 8) & 0xFFFFFFFF;
+#endif
 
 		if (crc == crc_sent)
 		{
@@ -166,6 +201,23 @@ std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 				payloadSize -= 15;
 			}
 
+#ifdef ARDUINO
+			unsigned char *out = (unsigned char *)calloc(payloadSize + 1, sizeof(char));
+			mbedtls_aes_context aes;
+
+			mbedtls_aes_init(&aes);
+			mbedtls_aes_setkey_dec(&aes, (const unsigned char *)szEncryptionkey.c_str(), szEncryptionkey.length() * 8);
+			for (int i = 0; i < payloadSize / 16; ++i)
+				mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_DECRYPT, (const unsigned char *)(cEncryptedPayload + i * 16), out + i * 16);
+			mbedtls_aes_free(&aes);
+
+			//  trim padding chars from decrypted payload
+			uint8_t padding = out[payloadSize - 1];
+			if (padding <= 16)
+				out[payloadSize - padding] = 0;
+			result = std::string((const char *)out);
+
+#else
 			unsigned char* cDecryptedPayload = new unsigned char[payloadSize + 16];
 			memset(cDecryptedPayload, 0, payloadSize + 16);
 			int decryptedSize = 0;
@@ -174,7 +226,7 @@ std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 			try
 			{
 				EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-				EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
+				EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)szEncryptionkey.c_str(), nullptr);
 				EVP_DecryptUpdate(ctx, cDecryptedPayload, &decryptedChars, cEncryptedPayload, payloadSize);
 				decryptedSize = decryptedChars;
 				EVP_DecryptFinal_ex(ctx, cDecryptedPayload + decryptedSize, &decryptedChars);
@@ -186,6 +238,7 @@ std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 			{
 				result.append("{\"msg\":\"error decrypting payload\"}");
 			}
+#endif
 		}
 		else
 			result.append("{\"msg\":\"crc error\"}");
