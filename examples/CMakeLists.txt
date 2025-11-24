@@ -2,11 +2,17 @@ cmake_minimum_required(VERSION 3.16.0)
 
 project(tuyapp)
 
-option(ENABLE_DEBUG "Enable debugging" NO)
+option(ENABLE_DEBUG  "Enable debugging" NO)
+option(BUILD_ARDUINO "Build for Arduino" NO)
+
 
 
 if(ENABLE_DEBUG)
     add_definitions(-DDEBUG)
+endif()
+
+if(BUILD_ARDUINO)
+    add_definitions(-DARDUINO)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")

@@ -36,11 +36,11 @@ tuyaAPI34::tuyaAPI34()
 }
 
 
-int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key)
+int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &szEncryptionkey)
 {
 	if (!m_session_established)
 	{
-		if (!NegotiateSession(encryption_key))
+		if (!NegotiateSession(szEncryptionkey))
 			return -1;
 	}
 
@@ -120,7 +120,7 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 }
 
 
-std::string tuyaAPI34::DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key)
+std::string tuyaAPI34::DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &szEncryptionkey)
 {
 	if (!m_session_established)
 		return "{\"msg\":\"session not established\"}";
@@ -215,7 +215,7 @@ bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
 }
 
 
-/* private */ int tuyaAPI34::BuildSessionMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key)
+/* private */ int tuyaAPI34::BuildSessionMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &szEncryptionkey)
 {
 	static uint32_t session_seqno = 1;
 
@@ -243,7 +243,7 @@ bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
 	try
 	{
 		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
+		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)szEncryptionkey.c_str(), nullptr);
 		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)szPayload.c_str(), payloadSize);
 		encryptedSize = encryptedChars;
 		EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
@@ -264,7 +264,7 @@ bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
 
 	// Calculate HMAC-SHA256
 	unsigned int hmac_len;
-	HMAC(EVP_sha256(), (unsigned char*)encryption_key.c_str(), encryption_key.length(),
+	HMAC(EVP_sha256(), (unsigned char*)szEncryptionkey.c_str(), szEncryptionkey.length(),
 	     buffer, bufferpos, cMessageTrailer, &hmac_len);
 
 	cMessageTrailer[32] = (MESSAGE_SUFFIX & 0xFF000000) >> 24;
@@ -283,7 +283,7 @@ bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
 }
 
 
-/* private */ std::string tuyaAPI34::DecodeSessionMessage(unsigned char* buffer, const int size, const std::string &encryption_key)
+/* private */ std::string tuyaAPI34::DecodeSessionMessage(unsigned char* buffer, const int size, const std::string &szEncryptionkey)
 {
 	std::string result;
 	unsigned char* cTuyaResponse = buffer;
@@ -301,7 +301,7 @@ bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
 	try
 	{
 		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-		EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
+		EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)szEncryptionkey.c_str(), nullptr);
 		EVP_DecryptUpdate(ctx, cDecryptedPayload, &decryptedChars, cEncryptedPayload, payloadSize);
 		decryptedSize = decryptedChars;
 		EVP_DecryptFinal_ex(ctx, cDecryptedPayload + decryptedSize, &decryptedChars);
