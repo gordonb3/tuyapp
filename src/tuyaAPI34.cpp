@@ -217,7 +217,7 @@ bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
 
 /* private */ int tuyaAPI34::BuildSessionMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key)
 {
-	static uint32_t session_seqno = 1;
+	m_seqno++;
 
 	int bufferpos = 0;
 	memset(buffer, 0, PROTOCOL_34_HEADER_SIZE);
@@ -225,14 +225,12 @@ bool tuyaAPI34::ConnectToDevice(const std::string &hostname, uint8_t retries)
 	buffer[1] = (MESSAGE_PREFIX & 0x00FF0000) >> 16;
 	buffer[2] = (MESSAGE_PREFIX & 0x0000FF00) >> 8;
 	buffer[3] = (MESSAGE_PREFIX & 0x000000FF);
-	buffer[4] = (session_seqno & 0xFF000000) >> 24;
-	buffer[5] = (session_seqno & 0x00FF0000) >> 16;
-	buffer[6] = (session_seqno & 0x0000FF00) >> 8;
-	buffer[7] = (session_seqno & 0x000000FF);
+	buffer[4] = (m_seqno & 0xFF000000) >> 24;
+	buffer[5] = (m_seqno & 0x00FF0000) >> 16;
+	buffer[6] = (m_seqno & 0x0000FF00) >> 8;
+	buffer[7] = (m_seqno & 0x000000FF);
 	buffer[11] = command;
 	bufferpos += (int)PROTOCOL_34_HEADER_SIZE;
-
-	session_seqno++;  // Increment by 1 for next message
 
 	unsigned char* cEncryptedPayload = &buffer[bufferpos];
 	int payloadSize = (int)szPayload.length();
