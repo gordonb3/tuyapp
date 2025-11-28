@@ -47,12 +47,15 @@ int main(int argc, char *argv[])
 
 	std::string device_id = std::string(argv[2]);
 	std::string device_key = std::string(argv[3]);
+
+	tuyaclient->NegotiateSession(device_key);
+
 	std::stringstream ss_payload;
 	long currenttime = time(NULL) ;
 	ss_payload << "{\"gwId\":\"" << device_id << "\",\"devId\":\"" << device_id << "\",\"uid\":\"" << device_id << "\",\"t\":\"" << currenttime << "\"}";
 	std::string payload = ss_payload.str();
 
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
+	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload);
 
 
 	int numbytes = tuyaclient->send(message_buffer, payload_len);
@@ -64,7 +67,7 @@ int main(int argc, char *argv[])
 	if (numbytes < 0)
 		c_error("ERROR reading from socket");
 
-	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
+	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes);
 
 #ifdef DEBUG
 	std::cout << "dbg: raw answer: ";
@@ -80,7 +83,7 @@ int main(int argc, char *argv[])
 		usleep(100000);
 
 		payload = "{\"dpId\":[1,19]}";
-		payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, payload, device_key);
+		payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, payload);
 		numbytes = tuyaclient->send(message_buffer, payload_len);
 		if (numbytes < 0)
 			c_error("ERROR writing to socket");
@@ -99,7 +102,7 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
+			tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes);
 #ifdef DEBUG
 			std::cout << "dbg: raw answer: ";
 			for(int i=0; i<numbytes; ++i)
