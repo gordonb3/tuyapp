@@ -11,7 +11,8 @@
 #include <sstream>
 
 tuyaAsync::tuyaAsync(const std::string &version, const std::string &id,
-                     const std::string &key, const std::string &addr)
+                     const std::string &key, const std::string &addr,
+                     std::ostream *out)
 	: m_api(nullptr)
 	, m_sockfd(-1)
 	, m_state(DISCONNECTED)
@@ -22,6 +23,7 @@ tuyaAsync::tuyaAsync(const std::string &version, const std::string &id,
 	, m_device_key(key)
 	, m_device_address(addr)
 	, m_device_version(version)
+	, m_out(out ? out : &*m_out)
 {
 	m_api = tuyaAPI::create(version);
 }
@@ -55,14 +57,14 @@ void tuyaAsync::loop(struct timeval &tv)
 		if (now - m_last_connect_attempt < 10)
 			break;
 
-		std::cout << "Connecting to " << m_device_address << ":6668...\n";
+		*m_out << "Connecting to " << m_device_address << ":6668...\n";
 		m_last_connect_attempt = now;
 
 		// Reset API state for new connection
 		delete m_api;
 		m_api = tuyaAPI::create(m_device_version);
 		if (!m_api) {
-			std::cerr << "Failed to create API\n";
+			*m_out << "Failed to create API\n";
 			break;
 		}
 
@@ -73,13 +75,13 @@ void tuyaAsync::loop(struct timeval &tv)
 
 		int err = getaddrinfo(m_device_address.c_str(), "6668", &hints, &result);
 		if (err != 0) {
-			std::cerr << "Failed to resolve address: " << gai_strerror(err) << "\n";
+			*m_out << "Failed to resolve address: " << gai_strerror(err) << "\n";
 			break;
 		}
 
 		m_sockfd = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 		if (m_sockfd < 0) {
-			std::cerr << "Failed to create socket\n";
+			*m_out << "Failed to create socket\n";
 			freeaddrinfo(result);
 			break;
 		}
@@ -90,12 +92,12 @@ void tuyaAsync::loop(struct timeval &tv)
 		freeaddrinfo(result);
 
 		if (err != 0 && errno != EINPROGRESS) {
-			std::cerr << "Connect failed: " << strerror(errno) << "\n";
+			*m_out << "Connect failed: " << strerror(errno) << "\n";
 			m_state = DISCONNECTING;
 			break;
 		}
 #ifdef DEBUG
-		std::cout << "Connect initiated (EINPROGRESS)\n";
+		*m_out << "Connect initiated (EINPROGRESS)\n";
 #endif
 		m_state = CONNECTING;
 		m_state_start_time = now;
@@ -112,7 +114,7 @@ void tuyaAsync::loop(struct timeval &tv)
 	{
 		// Check for timeout
 		if (now - m_state_start_time > 5) {
-			std::cerr << "Connection timeout\n";
+			*m_out << "Connection timeout\n";
 			m_state = DISCONNECTING;
 			break;
 		}
@@ -131,12 +133,12 @@ void tuyaAsync::loop(struct timeval &tv)
 		int error = 0;
 		socklen_t len = sizeof(error);
 		if (getsockopt(m_sockfd, SOL_SOCKET, SO_ERROR, &error, &len) != 0 || error != 0) {
-			std::cerr << "Connection failed: " << strerror(error) << "\n";
+			*m_out << "Connection failed: " << strerror(error) << "\n";
 			m_state = DISCONNECTING;
 			break;
 		}
 
-		std::cout << "Connected!\n";
+		*m_out << "Connected!\n";
 
 		// Set encryption key now that we're connected
 		m_api->SetEncryptionKey(m_device_key);
@@ -145,16 +147,16 @@ void tuyaAsync::loop(struct timeval &tv)
 		unsigned char session_msg[1024];
 		int session_len = m_api->BuildSessionMessage(session_msg);
 		if (session_len < 0) {
-			std::cerr << "Failed to build session message\n";
+			*m_out << "Failed to build session message\n";
 			m_state = DISCONNECTING;
 			break;
 		}
 
 #ifdef DEBUG
 		if (session_len > 0)
-			std::cout << "Built session message: " << session_len << " bytes\n";
+			*m_out << "Built session message: " << session_len << " bytes\n";
 		else
-			std::cout << "No negotiation needed\n";
+			*m_out << "No negotiation needed\n";
 #endif
 		m_state = NEGOTIATING;
 		m_state_start_time = now;
@@ -165,10 +167,10 @@ void tuyaAsync::loop(struct timeval &tv)
 			ssize_t sent = write(m_sockfd, session_msg, session_len);
 			if (sent > 0) {
 #ifdef DEBUG
-				std::cout << "Sent negotiation packet: " << sent << " bytes\n";
+				*m_out << "Sent negotiation packet: " << sent << " bytes\n";
 #endif
 			} else if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-				std::cerr << "Write error: " << strerror(errno) << "\n";
+				*m_out << "Write error: " << strerror(errno) << "\n";
 				m_state = DISCONNECTING;
 			break;
 			}
@@ -180,7 +182,7 @@ void tuyaAsync::loop(struct timeval &tv)
 	{
 		// Check for timeout
 		if (now - m_state_start_time > 5) {
-			std::cerr << "Negotiation timeout\n";
+			*m_out << "Negotiation timeout\n";
 			m_state = DISCONNECTING;
 			break;
 		}
@@ -191,19 +193,19 @@ void tuyaAsync::loop(struct timeval &tv)
 			ssize_t len = read(m_sockfd, m_message_buffer, sizeof(m_message_buffer));
 			if (len > 0) {
 #ifdef DEBUG
-				std::cout << "Received negotiation response: " << len << " bytes\n";
+				*m_out << "Received negotiation response: " << len << " bytes\n";
 #endif
 				m_api->DecodeSessionMessage(m_message_buffer, len);
 
 				if (m_api->isSessionEstablished()) {
-					std::cout << "Negotiation complete\n";
+					*m_out << "Negotiation complete\n";
 					m_state = CONNECTED;
 					m_last_rx_time = now;
 				} else {
 					unsigned char session_msg[1024];
 					int session_len = m_api->BuildSessionMessage(session_msg);
 					if (session_len < 0) {
-						std::cerr << "Negotiation failed\n";
+						*m_out << "Negotiation failed\n";
 						m_state = DISCONNECTING;
 			break;
 					} else if (session_len > 0) {
@@ -211,24 +213,24 @@ void tuyaAsync::loop(struct timeval &tv)
 						ssize_t sent = write(m_sockfd, session_msg, session_len);
 						if (sent > 0) {
 #ifdef DEBUG
-							std::cout << "Sent negotiation packet: " << sent << " bytes\n";
+							*m_out << "Sent negotiation packet: " << sent << " bytes\n";
 #endif
 
 							// Check if negotiation complete
 							if (m_api->isSessionEstablished()) {
-								std::cout << "Negotiation complete\n";
+								*m_out << "Negotiation complete\n";
 								m_state = CONNECTED;
 								m_last_rx_time = now;
 							}
 						} else if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-							std::cerr << "Write error: " << strerror(errno) << "\n";
+							*m_out << "Write error: " << strerror(errno) << "\n";
 							m_state = DISCONNECTING;
 			break;
 						}
 					}
 				}
 			} else if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-				std::cerr << "Read error: " << strerror(errno) << "\n";
+				*m_out << "Read error: " << strerror(errno) << "\n";
 				m_state = DISCONNECTING;
 			break;
 			}
@@ -245,8 +247,8 @@ void tuyaAsync::loop(struct timeval &tv)
 			if (len > 0) {
 				ssize_t sent = write(m_sockfd, m_message_buffer, len);
 				if (sent == len) {
-					std::cout << "Sent DP query\n";
-					std::cout << "Monitoring for updates (Ctrl-C to exit)...\n";
+					*m_out << "Sent DP query\n";
+					*m_out << "Monitoring for updates (Ctrl-C to exit)...\n";
 				}
 			}
 		}
@@ -261,14 +263,14 @@ void tuyaAsync::loop(struct timeval &tv)
 			m_last_rx_time = now;
 			std::string decoded = m_api->DecodeTuyaMessage(m_message_buffer, len);
 			if (!decoded.empty()) {
-				std::cout << "Received: " << decoded << "\n";
+				*m_out << "Received: " << decoded << "\n";
 			}
 		} else if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-			std::cerr << "Read error: " << strerror(errno) << "\n";
+			*m_out << "Read error: " << strerror(errno) << "\n";
 			m_state = DISCONNECTING;
 			break;
 		} else if (len == 0) {
-			std::cout << "Connection closed by device\n";
+			*m_out << "Connection closed by device\n";
 			m_state = DISCONNECTING;
 			break;
 		}
@@ -279,7 +281,7 @@ void tuyaAsync::loop(struct timeval &tv)
 			if (len > 0) {
 				ssize_t sent = write(m_sockfd, m_message_buffer, len);
 				if (sent == len) {
-					std::cout << "Sent heartbeat\n";
+					*m_out << "Sent heartbeat\n";
 					m_last_rx_time = now;
 				}
 			}

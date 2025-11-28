@@ -4,11 +4,13 @@
 #include "tuyaAPI.hpp"
 #include <string>
 #include <sys/time.h>
+#include <ostream>
 
 class tuyaAsync {
 public:
 	tuyaAsync(const std::string &version, const std::string &id,
-	          const std::string &key, const std::string &addr);
+	          const std::string &key, const std::string &addr,
+	          std::ostream *out = nullptr);
 	~tuyaAsync();
 
 	// Called by application's event loop
@@ -38,6 +40,7 @@ private:
 	std::string m_device_key;
 	std::string m_device_address;
 	std::string m_device_version;
+	std::ostream *m_out;
 };
 
 #endif // TUYAASYNC_HPP
