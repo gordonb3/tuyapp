@@ -36,6 +36,7 @@ include_directories(${CMAKE_SOURCE_DIR}/../src)
 
 # Targets
 file(GLOB TUYA_demo_SRCS *.cpp)
+list(REMOVE_ITEM TUYA_demo_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/tuya_gtk_monitor.cpp)
 
 
 # Main library
@@ -74,4 +75,17 @@ foreach(demo ${TUYA_demo_SRCS})
   target_link_libraries(${exefile} tuyapp ${ZLIB_LIBRARIES} pthread ${OPENSSL_LIBRARIES})
   message(STATUS "Created make target ${exefile}")
 endforeach(demo)
+
+# GTK+ monitor (optional)
+pkg_check_modules(GTK3 gtk+-3.0)
+if(GTK3_FOUND)
+  message(STATUS "GTK+3 found, building tuya_gtk_monitor")
+  add_executable(tuya_gtk_monitor tuya_gtk_monitor.cpp)
+  target_include_directories(tuya_gtk_monitor PUBLIC ${GTK3_INCLUDE_DIRS})
+  target_link_directories(tuya_gtk_monitor PUBLIC ${GTK3_LIBRARY_DIRS})
+  target_link_libraries(tuya_gtk_monitor tuyapp ${ZLIB_LIBRARIES} pthread ${OPENSSL_LIBRARIES} ${GTK3_LIBRARIES})
+else()
+  message(STATUS "GTK+3 not found, skipping tuya_gtk_monitor")
+endif()
+
 
