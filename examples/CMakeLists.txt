@@ -2,11 +2,16 @@ cmake_minimum_required(VERSION 3.16.0)
 
 project(tuyapp)
 
-option(ENABLE_DEBUG "Enable debugging" NO)
+option(ENABLE_DEBUG "Enable library debugging" NO)
+option(ENABLE_APP_DEBUG "Enable application debugging" NO)
 
 
 if(ENABLE_DEBUG)
     add_definitions(-DDEBUG)
+endif()
+
+if(ENABLE_APP_DEBUG)
+    add_definitions(-DAPPDEBUG)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")

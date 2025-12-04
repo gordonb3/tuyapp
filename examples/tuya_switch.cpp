@@ -9,7 +9,7 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
-//#define DEBUG
+//#define APPDEBUG
 
 #ifndef MAX_BUFFER_SIZE
 #define MAX_BUFFER_SIZE 1024
@@ -62,7 +62,6 @@ bool get_device_by_name(const std::string name, std::string &id, std::string &ke
 			lowername[i] = lowername[i] | 0x20;
 	}
 
-
 	if (jDevices["devices"].isArray())
 	{
 		for (int i=0;i<(int)jDevices["devices"].size();i++)
@@ -98,7 +97,7 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 	std::cout << "id : " << device_id << "\n";
 	std::cout << "key : " << device_key<< "\n";
 	std::cout << "address : " << device_address << "\n";
@@ -140,14 +139,13 @@ int main(int argc, char *argv[])
 
 	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 	std::cout << "dbg: raw answer: ";
 	for(int i=0; i<numbytes; ++i)
 		printf("%.2x", (uint8_t)message_buffer[i]);
 	std::cout << "\n";
 	std::cout << "dbg: decoded answer: " << tuyaresponse << "\n";
 #endif
-
 
 	bool switchstate;
 	if (s_switchstate == "on")
@@ -167,7 +165,6 @@ int main(int argc, char *argv[])
 		else
 			error("ERROR fetching current switch state");
 	}
-
 
 	ss_payload.str(std::string());
 
@@ -197,7 +194,7 @@ int main(int argc, char *argv[])
 	}
 	payload = ss_payload.str();
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 	std::cout << "building switch payload: " << payload << "\n";
 #endif
 
@@ -205,7 +202,7 @@ int main(int argc, char *argv[])
 		(tuyaclient->getProtocol() == tuyaAPI::Protocol::v34) ? TUYA_CONTROL_NEW : TUYA_CONTROL,
 		payload, device_key);
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 		std::cout << "sending message: ";
 		for(int i=0; i<numbytes; ++i)
 			printf("%.2x", (uint8_t)message_buffer[i]);
@@ -221,7 +218,7 @@ int main(int argc, char *argv[])
 		error("ERROR reading from socket");
 
 	tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
-#ifdef DEBUG
+#ifdef APPDEBUG
 	std::cout << "dbg: raw encrypted answer: ";
 	for(int i=0; i<numbytes; ++i)
 		printf("%.2x", (uint8_t)message_buffer[i]);

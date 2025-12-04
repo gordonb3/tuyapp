@@ -27,9 +27,6 @@
 #include <cmath>
 #include <chrono>
 #include <thread>
-
-
-
 #include <fstream>
 
 
@@ -94,7 +91,7 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 	std::cout << "dbg: Device details:\n";
 	std::cout << "  id : " << device_id << "\n";
 	std::cout << "  key : " << device_key<< "\n";
@@ -145,7 +142,7 @@ int main(int argc, char *argv[])
 	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
 
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 	std::cout << "dbg: raw answer: ";
 	for(int i=0; i<numbytes; ++i)
 		printf("%.2x", (uint8_t)message_buffer[i]);
@@ -199,13 +196,14 @@ int main(int argc, char *argv[])
 			}
 		}
 
+		tuyaclient->setAsyncMode();
 		numbytes = -1;
 		int i = 0;
 		while ((numbytes <= 28) && (i < 1000))  // 10 seconds
 		{
 			i++;
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
-			numbytes = tuyaclient->receive(message_buffer, MAX_BUFFER_SIZE - 1, 0, false);
+			numbytes = tuyaclient->receive(message_buffer, MAX_BUFFER_SIZE - 1);
 			if (numbytes < 0)
 			{
 				// expect a timeout because the device will only send updates when the requested values change
@@ -222,7 +220,7 @@ int main(int argc, char *argv[])
 			}
 		}
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 		if (numbytes < 0)
 			std::cout << "{\"msg\":\"timeout reached\",\"code\":" << errno << "}\n";
 #endif
@@ -230,7 +228,7 @@ int main(int argc, char *argv[])
 		if (numbytes > 0)
 		{
 			tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
-#ifdef DEBUG
+#ifdef APPDEBUG
 			std::cout << "dbg: raw answer: ";
 			for(int i=0; i<numbytes; ++i)
 				printf("%.2x", (uint8_t)message_buffer[i]);

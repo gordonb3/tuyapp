@@ -9,9 +9,6 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
-//#define DEBUG
-
-
 #define MAX_BUFFER_SIZE 1024
 
 #include "tuyaAPI33.hpp"
@@ -66,7 +63,7 @@ int main(int argc, char *argv[])
 
 	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 	std::cout << "dbg: raw answer: ";
 	for(int i=0; i<numbytes; ++i)
 		printf("%.2x", (uint8_t)message_buffer[i]);
@@ -92,7 +89,7 @@ int main(int argc, char *argv[])
 			// expect a timeout because the device will only send updates when the requested values change
 			if (errno != 11)
 				c_error("ERROR reading from socket");
-#ifdef DEBUG
+#ifdef APPDEBUG
 			else
 				std::cout << "{\"msg\":\"timeout reached\",\"code\":11}\n";
 #endif
@@ -100,7 +97,7 @@ int main(int argc, char *argv[])
 		else
 		{
 			tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
-#ifdef DEBUG
+#ifdef APPDEBUG
 			std::cout << "dbg: raw answer: ";
 			for(int i=0; i<numbytes; ++i)
 				printf("%.2x", (uint8_t)message_buffer[i]);

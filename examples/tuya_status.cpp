@@ -9,8 +9,6 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
-//#define DEBUG
-
 #ifndef MAX_BUFFER_SIZE
 #define MAX_BUFFER_SIZE 1024
 #endif
@@ -27,6 +25,8 @@
 #include <json/json.h>
 
 #include <fstream>
+#include <thread>
+#include <chrono>
 
 
 bool get_device_by_name(const std::string name, std::string &id, std::string &key, std::string &address, std::string &version)
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 	std::cout << "dbg: Device details:\n";
 	std::cout << "  id : " << device_id << "\n";
 	std::cout << "  key : " << device_key<< "\n";
@@ -121,13 +121,8 @@ int main(int argc, char *argv[])
 
 	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
 
-	int numbytes = tuyaclient->send(message_buffer, payload_len);
-	if (numbytes < 0)
-	{
-		std::cout << "Error writing to socket: " << strerror(errno) << " (" << errno << ")\n";
-		exit(1);
-	}
-
+	int numbytes;
+	numbytes = tuyaclient->send(message_buffer, payload_len);
 	numbytes = tuyaclient->receive(message_buffer, MAX_BUFFER_SIZE - 1);
 	if (numbytes < 0)
 	{
@@ -140,7 +135,7 @@ int main(int argc, char *argv[])
 
 	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 	std::cout << "dbg: raw answer: ";
 	for(int i=0; i<numbytes; ++i)
 		printf("%.2x", (uint8_t)message_buffer[i]);

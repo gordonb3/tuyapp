@@ -33,6 +33,11 @@
 #include <thread>
 #include <mutex>
 
+#ifdef APPDEBUG
+#include <iostream>
+#endif
+
+
 bool StopRequested = false;
 
 bool get_device_by_name(const std::string name, std::string &id, std::string &key, std::string &address, std::string &version)
@@ -80,6 +85,39 @@ bool get_device_by_name(const std::string name, std::string &id, std::string &ke
 }
 
 
+int ReadFromDevice(tuyaAPI *tuyaclient, unsigned char *cMessageBuffer, const int timeout)
+{
+	int numbytes = -1;
+	int i = 0;
+	while ((numbytes <= 28) && (i < (timeout * 100)) && (!StopRequested))
+	{
+		i++;
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		numbytes = tuyaclient->receive(cMessageBuffer, MAX_BUFFER_SIZE - 1);
+		if (numbytes < 0)
+		{
+			// expect a timeout because the device will only respond to UPDATEDPS when the requested values change
+#ifdef WIN32
+			if (WSAGetLastError() == WSAEWOULDBLOCK)
+				continue;
+#else
+			if ((errno == EAGAIN) || (errno == EINPROGRESS))
+				continue;
+#endif
+			return numbytes;
+		}
+
+		if (numbytes <= 28)
+		{
+			// device sent us a message with an empty payload - wait for one that does contain an actual payload
+			continue;
+		}
+	}
+	return numbytes;
+}
+
+
+
 bool monitor(std::string devicename)
 {
 	std::mutex writeprotect;
@@ -101,10 +139,39 @@ bool monitor(std::string devicename)
 		exit(0);
 	}
 
-	if (!tuyaclient->ConnectToDevice(device_address))
+	tuyaclient->setAsyncMode();
+
+/*	if (!tuyaclient->ConnectToDevice(device_address))
 	{
 		writeprotect.lock();
 		std::cout << "Error connecting to device: " << strerror(errno) << " (" << errno << ")\n";
+		writeprotect.unlock();
+		return false;
+	}
+*/
+
+	int i = 0;
+	tuyaclient->ConnectToDevice(device_address);
+	while (!tuyaclient->isSocketWritable() && (i < 500) && (!StopRequested))
+	{
+#ifdef WIN32
+		if (tuyaclient->getlasterror() != WSAEWOULDBLOCK)
+			break;
+#else
+		if ((tuyaclient->getlasterror() != EAGAIN) && (tuyaclient->getlasterror() != EINPROGRESS))
+			break;
+#endif
+		i++;
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
+
+	std::cout << "last error was " << tuyaclient->getlasterror() << "\n";
+
+//	if (!tuyaclient->isSocketWritable())
+	if (tuyaclient->getlasterror() != 0)
+	{
+		writeprotect.lock();
+		std::cout << "Error connecting to device: " << strerror(tuyaclient->getlasterror()) << " (" << tuyaclient->getlasterror() << ")\n";
 		writeprotect.unlock();
 		return false;
 	}
@@ -116,16 +183,9 @@ bool monitor(std::string devicename)
 
 	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
 
-	int numbytes = tuyaclient->send(message_buffer, payload_len);
-	if (numbytes < 0)
-	{
-		writeprotect.lock();
-		std::cout << "Error writing to socket: " << strerror(errno) << " (" << errno << ")\n";
-		writeprotect.unlock();
-		return false;
-	}
-
-	numbytes = tuyaclient->receive(message_buffer, MAX_BUFFER_SIZE - 1);
+	int numbytes;
+	numbytes = tuyaclient->send(message_buffer, payload_len);
+	numbytes = ReadFromDevice(tuyaclient, message_buffer, 2);
 	if (numbytes < 0)
 	{
 		writeprotect.lock();
@@ -149,64 +209,30 @@ bool monitor(std::string devicename)
 	timeval = jStatus["t"].asUInt64();
 	bool switchstate = jStatus["dps"]["1"].asBool();
 
+	std::cout << tuyaresponse << "\n";
+
 	while (!StopRequested)
 	{
 		if (numbytes > 0)
 		{
+#ifdef APPDEBUG
+			std::cout << "Sending new request for updates\n";
+#endif			// send heart beat to keep connection alive
 			// received data => make new request for data point updates for switch state, power and voltage
 			payload = "{\"dpId\":[1,19,20]}";
 			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, payload, device_key);
 		}
 		else
 		{
-			// send heart beat to keep connection alive
+#ifdef APPDEBUG
+			std::cout << "Sending heart beat\n";
+#endif			// send heart beat to keep connection alive
 			payload = "{\"gwId\":\"" + device_id + "\",\"devId\":\"" + device_id + "\"}";
 			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_HEART_BEAT, payload, device_key);
-
 		}
 
 		numbytes = tuyaclient->send(message_buffer, payload_len);
-		if (numbytes < 0)
-		{
-			if (errno == EAGAIN)
-			{
-				std::this_thread::sleep_for(std::chrono::milliseconds(100));
-				int so_error = tuyaclient->getlasterror();
-				if ( so_error != 0)
-				{
-					writeprotect.lock();
-					std::cout << "Error writing to socket: " << so_error << "\n";
-					writeprotect.unlock();
-					return false;
-				}
-			}
-		}
-
-		numbytes = -1;
-		int i = 0;
-		while ((numbytes <= 28) && (i < 1000) && (!StopRequested))  // 10 seconds
-		{
-			i++;
-			std::this_thread::sleep_for(std::chrono::milliseconds(10));
-			numbytes = tuyaclient->receive(message_buffer, MAX_BUFFER_SIZE - 1, 0, false);
-			if (numbytes < 0)
-			{
-				// expect a timeout because the device will only send updates when the requested values change
-				if (errno == EAGAIN)
-					continue;
-				writeprotect.lock();
-				std::cout << "Error reading from socket: " << strerror(errno) << " (" << errno << ")\n";
-				writeprotect.unlock();
-				return false;
-			}
-
-			if (numbytes <= 28)
-			{
-				// device sent us a message with an empty payload - wait for one that does contain an actual payload
-				continue;
-			}
-		}
-
+		numbytes = ReadFromDevice(tuyaclient, message_buffer, 10);
 		if (numbytes > 0)
 		{
 			tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
@@ -256,6 +282,19 @@ bool monitor(std::string devicename)
 			}
 			else
 				timeval = newtimeval;
+		}
+		else
+		{
+#ifdef WIN32
+			if (WSAGetLastError() == WSAEWOULDBLOCK)
+				continue;
+#else
+			if ((errno == EAGAIN) || (errno == EINPROGRESS))
+				continue;
+#endif
+			writeprotect.lock();
+			std::cout << "Error reading from socket: " << strerror(errno) << " (" << errno << ")\n";
+			writeprotect.unlock();
 		}
 	}
 

@@ -9,8 +9,6 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
-//#define DEBUG
-
 #define MAX_BUFFER_SIZE 1024
 
 #include "tuyaAPI33.hpp"
@@ -20,7 +18,6 @@
 #include <string.h>
 
 #include <fstream>
-
 
 
 void c_error(const char *msg)
@@ -63,22 +60,19 @@ int main(int argc, char *argv[])
 	int numbytes = tuyaclient->send(message_buffer, payload_len);
 	if (numbytes < 0)
 		c_error("ERROR writing to socket");
-	usleep(100000);
-
 	numbytes = tuyaclient->receive(message_buffer, MAX_BUFFER_SIZE - 1);
 	if (numbytes < 0)
 		c_error("ERROR reading from socket");
 
 	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 	std::cout << "dbg: raw answer: ";
 	for(int i=0; i<numbytes; ++i)
 		printf("%.2x", (uint8_t)message_buffer[i]);
 	std::cout << "\n";
 	std::cout << "dbg: decoded answer: " << tuyaresponse << "\n";
 #endif
-
 
 	bool switchstate;
 	if (s_switchstate == "on")
@@ -111,13 +105,13 @@ int main(int argc, char *argv[])
 	ss_payload <<  "},\"t\":\"" << currenttime << "\"}";
 	payload = ss_payload.str();
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 	std::cout << "building switch payload: " << payload << "\n";
 #endif
 
 	payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_CONTROL, payload, device_key);
 
-#ifdef DEBUG
+#ifdef APPDEBUG
 		std::cout << "sending message: ";
 		for(int i=0; i<numbytes; ++i)
 			printf("%.2x", (uint8_t)message_buffer[i]);
@@ -135,7 +129,7 @@ int main(int argc, char *argv[])
 
 
 	tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
-#ifdef DEBUG
+#ifdef APPDEBUG
 	std::cout << "dbg: raw answer: ";
 	for(int i=0; i<numbytes; ++i)
 		printf("%.2x", (uint8_t)message_buffer[i]);
