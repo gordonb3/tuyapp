@@ -83,6 +83,7 @@ public:
 	virtual ~tuyaAPI() {}
 
 	static tuyaAPI* create(const std::string &version);
+	static tuyaAPI* create(Protocol protocol);
 
 	// Get protocol version
 	Protocol getProtocol() const { return m_protocol; }

@@ -47,6 +47,22 @@ tuyaAPI* tuyaAPI::create(const std::string &version)
 	return nullptr;
 }
 
+tuyaAPI* tuyaAPI::create(Protocol protocol)
+{
+	switch (protocol)
+	{
+	case Protocol::v31:
+		return new tuyaAPI31();
+	case Protocol::v33:
+		return new tuyaAPI33();
+	case Protocol::v34:
+		return new tuyaAPI34();
+	case Protocol::v35:
+		return new tuyaAPI35();
+	}
+	return nullptr;
+}
+
 bool tuyaAPI::NegotiateSession(const std::string &local_key)
 {
 	SetEncryptionKey(local_key);
