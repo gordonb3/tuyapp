@@ -31,6 +31,8 @@
  *	 - setAsyncMode(true|false)
  *		Enables (default) or disables async operation
  *		Returns nothing
+ *	 - isConnected()
+ *		Returns true|false indicating if connection was successful
  *	 - isSocketWritable()
  *		Returns true|false indicating if the connection is ready for writing
  *	 - isSocketReadable()
@@ -106,9 +108,10 @@ public:
 
 	virtual bool ConnectToDevice(const std::string &hostname, const uint8_t retries = 1);
 	int send(unsigned char* buffer, const int size);
-	int receive(unsigned char* buffer, const int maxsize, const int minsize = 28);
+	int receive(unsigned char* buffer, const int maxsize, const int minsize = 30);
 	int getlasterror();
 	void disconnect();
+	bool isConnected();
 	bool isSocketWritable();
 	bool isSocketReadable();
 	bool setSessionReady();

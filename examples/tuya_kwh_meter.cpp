@@ -75,8 +75,6 @@ bool get_device_by_name(const std::string name, std::string &id, std::string &ke
 }
 
 
-
-
 int main(int argc, char *argv[])
 {
 	if (argc < 2) {
@@ -160,6 +158,7 @@ int main(int argc, char *argv[])
 	timeval = jStatus["t"].asUInt64();
 	bool switchstate = jStatus["dps"]["1"].asBool();
 
+	tuyaclient->setAsyncMode();
 	while(true)
 	{
 		if (numbytes > 0)
@@ -196,7 +195,6 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		tuyaclient->setAsyncMode();
 		numbytes = -1;
 		int i = 0;
 		while ((numbytes <= 28) && (i < 1000))  // 10 seconds

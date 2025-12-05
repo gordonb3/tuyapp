@@ -31,6 +31,8 @@
  *	 - setAsyncMode(true|false)
  *		Enables (default) or disables async operation
  *		Returns nothing
+ *	 - isConnected()
+ *		Returns true|false indicating if connection was successful
  *	 - isSocketWritable()
  *		Returns true|false indicating if the connection is ready for writing
  *	 - isSocketReadable()
@@ -71,8 +73,6 @@
 
 #include "tuyaTCP.hpp"
 #include <unistd.h>
-#include <thread>
-#include <chrono>
 #include <cstring>
 #include <netdb.h>
 
@@ -119,7 +119,6 @@ Tuya::TCP::Socket::value tuyaTCP::getSocketState()
 	return m_socketState;
 }
 
-
 bool tuyaTCP::isSocketWritable()
 {
 	return (getSocketEvents(POLLOUT, 0) == 0);
@@ -141,6 +140,33 @@ bool tuyaTCP::setSessionReady()
 	}
 	return false;
 }
+
+
+bool tuyaTCP::isConnected()
+{
+	switch (m_socketState)
+	{
+		case Tuya::TCP::Socket::NO_SUCH_HOST:
+		case Tuya::TCP::Socket::NO_SOCK_AVAIL:
+		case Tuya::TCP::Socket::FAILED:
+		case Tuya::TCP::Socket::DISCONNECTED:
+			return false;
+		case Tuya::TCP::Socket::CONNECTED:
+		case Tuya::TCP::Socket::READY:
+		case Tuya::TCP::Socket::RECEIVING:
+			return true;
+		default:
+			break;
+	}
+	// Tuya::TCP::Socket::CONNECTING
+	if (isSocketWritable())
+	{
+		m_socketState = Tuya::TCP::Socket::CONNECTED;
+		return true;
+	}
+	return false;
+}
+
 
 bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 {
@@ -255,26 +281,42 @@ int tuyaTCP::send(unsigned char* buffer, const int size)
 // After sending a device state change command, tuya devices send an empty `ack` reply first
 // if Async mode is disabled, then setting minsize to a larger value than the empty reply
 // will cause this function to skip it and wait for the actual reply.
-// If you do not specify minsize, it will default to 28 bytes (version 3.3 message protocol)
+// If you do not specify minsize, it will default to 30 bytes (version 3.3 message protocol)
 int tuyaTCP::receive(unsigned char* buffer, const int maxsize, const int minsize)
 {
 	int numbytes = -1;
-	int i = 0;
-	while ((numbytes <= minsize) && (i < SOCKET_RECEIVE_TIMEOUT_SECS * 100))
+#ifdef WIN32
+	m_lasterror = WSAEWOULDBLOCK;
+#else
+	m_lasterror = EAGAIN;
+#endif
+	if (m_socketState == Tuya::TCP::Socket::READY)
 	{
-		i++;
-		if (isSocketReadable())
+		// you should not be trying to read in this socket state
+		return numbytes;
+	}
+	int timeout;
+	if (m_asyncMode)
+		timeout = 0;
+	else
+		timeout = SOCKET_RECEIVE_TIMEOUT_SECS * 1000;
+	bool getnext = true;
+	while ((numbytes <= minsize) && (getnext))
+	{
+		if (getSocketEvents(POLLIN, timeout) == 0)
 		{
 #ifdef WIN32
 			numbytes = recv(m_sockfd, (char*)buffer, maxsize, 0 );
-			m_lasterror = WSAGetLastError();
+			if (numbytes < 0)
+				m_lasterror = WSAGetLastError();
 #else
 			numbytes = read(m_sockfd, buffer, maxsize);
-			m_lasterror = errno;
+			if (numbytes < 0)
+				m_lasterror = errno;
 #endif
 		}
 
-		if (numbytes > minsize)
+		if (numbytes >= minsize)
 		{
 			// reset socket state to indicate that caller needs to send a new request for data
 			if (m_socketState == Tuya::TCP::Socket::RECEIVING)
@@ -283,34 +325,19 @@ int tuyaTCP::receive(unsigned char* buffer, const int maxsize, const int minsize
 		}
 
 		if (m_asyncMode)
-			return 0;
+			return -1;
 
-#ifdef DEBUG
 		if (numbytes > 0)
 		{
-			std::cout << "{\"ack\":true}\n";
-			numbytes = 0;
-		}
-#endif
-
-		if (m_lasterror != 0)
-		{
-#ifdef WIN32
-			if (m_lasterror != WSAEWOULDBLOCK)
-				break;
-#else
-			if ((m_lasterror != EAGAIN) && (m_lasterror != EINPROGRESS))
-				break;
-#endif
-		}
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-	}
-
-
+			// received an empty 'ack' message, continue reading
 #ifdef DEBUG
-	std::cout << "received " << numbytes << " bytes\n";
+			std::cout << "{\"ack\":true}\n";
 #endif
+			continue;
+		}
+
+		getnext = false;
+	}
 
 	return numbytes;
 }

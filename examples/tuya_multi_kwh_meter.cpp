@@ -1,7 +1,12 @@
 /*
  *  Threaded monitor example for local Tuya client
  *
- *  Copyright 2022 - gordonb3 https://github.com/gordonb3/tuyapp
+ *  This example enables async communication in the base TCP class, showcasing
+ *  how you can create a programmatically interruptable loop of requesting and
+ *  reading/handling data.
+ *
+ *
+ *  Copyright 2022-2026 - gordonb3 https://github.com/gordonb3/tuyapp
  *
  *  Licensed under GNU General Public License 3.0 or later.
  *  Some rights reserved. See COPYING, AUTHORS.
@@ -141,18 +146,9 @@ bool monitor(std::string devicename)
 
 	tuyaclient->setAsyncMode();
 
-/*	if (!tuyaclient->ConnectToDevice(device_address))
-	{
-		writeprotect.lock();
-		std::cout << "Error connecting to device: " << strerror(errno) << " (" << errno << ")\n";
-		writeprotect.unlock();
-		return false;
-	}
-*/
-
 	int i = 0;
 	tuyaclient->ConnectToDevice(device_address);
-	while (!tuyaclient->isSocketWritable() && (i < 500) && (!StopRequested))
+	while (!tuyaclient->isConnected() && (i < 500) && (!StopRequested))
 	{
 #ifdef WIN32
 		if (tuyaclient->getlasterror() != WSAEWOULDBLOCK)
@@ -165,9 +161,6 @@ bool monitor(std::string devicename)
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 
-	std::cout << "last error was " << tuyaclient->getlasterror() << "\n";
-
-//	if (!tuyaclient->isSocketWritable())
 	if (tuyaclient->getlasterror() != 0)
 	{
 		writeprotect.lock();
