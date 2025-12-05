@@ -96,3 +96,95 @@ void tuyaAPI::random_bytes(unsigned char *buffer, int len)
 {
 	RAND_bytes(buffer, len);
 }
+
+int tuyaAPI::aes_128_gcm_encrypt(const unsigned char *key, const unsigned char *iv, int iv_len,
+                                 const unsigned char *aad, int aad_len,
+                                 const unsigned char *input, int input_len,
+                                 unsigned char *output, int *output_len,
+                                 unsigned char *tag, int tag_len)
+{
+	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+	if (!ctx)
+		return -1;
+
+	int len;
+	*output_len = 0;
+
+	if (EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, key, iv) != 1) {
+		EVP_CIPHER_CTX_free(ctx);
+		return -1;
+	}
+
+	if (aad && aad_len > 0) {
+		if (EVP_EncryptUpdate(ctx, nullptr, &len, aad, aad_len) != 1) {
+			EVP_CIPHER_CTX_free(ctx);
+			return -1;
+		}
+	}
+
+	if (EVP_EncryptUpdate(ctx, output, &len, input, input_len) != 1) {
+		EVP_CIPHER_CTX_free(ctx);
+		return -1;
+	}
+	*output_len = len;
+
+	if (EVP_EncryptFinal_ex(ctx, output + len, &len) != 1) {
+		EVP_CIPHER_CTX_free(ctx);
+		return -1;
+	}
+	*output_len += len;
+
+	if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, tag_len, tag) != 1) {
+		EVP_CIPHER_CTX_free(ctx);
+		return -1;
+	}
+
+	EVP_CIPHER_CTX_free(ctx);
+	return 0;
+}
+
+int tuyaAPI::aes_128_gcm_decrypt(const unsigned char *key, const unsigned char *iv, int iv_len,
+                                 const unsigned char *aad, int aad_len,
+                                 const unsigned char *input, int input_len,
+                                 const unsigned char *tag, int tag_len,
+                                 unsigned char *output, int *output_len)
+{
+	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+	if (!ctx)
+		return -1;
+
+	int len;
+	*output_len = 0;
+
+	if (EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), nullptr, key, iv) != 1) {
+		EVP_CIPHER_CTX_free(ctx);
+		return -1;
+	}
+
+	if (aad && aad_len > 0) {
+		if (EVP_DecryptUpdate(ctx, nullptr, &len, aad, aad_len) != 1) {
+			EVP_CIPHER_CTX_free(ctx);
+			return -1;
+		}
+	}
+
+	if (EVP_DecryptUpdate(ctx, output, &len, input, input_len) != 1) {
+		EVP_CIPHER_CTX_free(ctx);
+		return -1;
+	}
+	*output_len = len;
+
+	if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, tag_len, (void*)tag) != 1) {
+		EVP_CIPHER_CTX_free(ctx);
+		return -1;
+	}
+
+	if (EVP_DecryptFinal_ex(ctx, output + len, &len) != 1) {
+		EVP_CIPHER_CTX_free(ctx);
+		return -1;
+	}
+	*output_len += len;
+
+	EVP_CIPHER_CTX_free(ctx);
+	return 0;
+}

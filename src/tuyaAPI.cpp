@@ -13,6 +13,7 @@
 #include "tuyaAPI31.hpp"
 #include "tuyaAPI33.hpp"
 #include "tuyaAPI34.hpp"
+#include "tuyaAPI35.hpp"
 
 #include <cstring>
 #include <ctime>
@@ -41,6 +42,8 @@ tuyaAPI* tuyaAPI::create(const std::string &version)
 		return new tuyaAPI33();
 	if (version == "3.4")
 		return new tuyaAPI34();
+	if (version == "3.5")
+		return new tuyaAPI35();
 	return nullptr;
 }
 
@@ -94,6 +97,16 @@ bool tuyaAPI::NegotiateSession(const std::string &local_key)
 std::string tuyaAPI::GeneratePayload(uint8_t &command, const std::string &szDeviceID, const std::string &szDatapoints)
 {
 	std::string szPayload;
+	
+	// For v3.5+, use newer command types
+	if (m_protocol >= Protocol::v35)
+	{
+		if (command == TUYA_DP_QUERY)
+			command = TUYA_DP_QUERY_NEW;
+		else if (command == TUYA_CONTROL)
+			command = TUYA_CONTROL_NEW;
+	}
+	
 	switch (command)
 	{
 		case TUYA_DP_QUERY:
