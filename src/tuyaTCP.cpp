@@ -69,7 +69,7 @@
  */
 
 #define SOCKET_CONNECT_TIMEOUT_SECS 5
-#define SOCKET_RECEIVE_TIMEOUT_SECS 1
+#define SOCKET_RECEIVE_TIMEOUT_SECS 2
 
 #include "tuyaTCP.hpp"
 #include <unistd.h>
@@ -280,7 +280,7 @@ int tuyaTCP::send(unsigned char* buffer, const int size)
 
 // After sending a device state change command, tuya devices send an empty `ack` reply first
 // if Async mode is disabled, then setting minsize to a larger value than the empty reply
-// will cause this function to skip it and wait for the actual reply.
+// will cause this function to ignore it and wait for the actual reply.
 // If you do not specify minsize, it will default to 30 bytes (version 3.3 message protocol)
 int tuyaTCP::receive(unsigned char* buffer, const int maxsize, const int minsize)
 {
