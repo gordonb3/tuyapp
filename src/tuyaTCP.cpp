@@ -247,6 +247,7 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 		if (getSocketEvents(POLLOUT, SOCKET_CONNECT_TIMEOUT_SECS) == 0)
 		{
 			m_socketState = Tuya::TCP::Socket::CONNECTED;
+			m_lasterror = 0;
 			return true;
 		}
 	}
@@ -268,10 +269,12 @@ int tuyaTCP::send(unsigned char* buffer, const int size)
 	int numbytes;
 #ifdef WIN32
 	numbytes = ::send(m_sockfd, (char*)buffer, size, 0);
-	m_lasterror = WSAGetLastError();
+	if (numbytes < 0)
+		m_lasterror = WSAGetLastError();
 #else
 	numbytes = write(m_sockfd, buffer, size);
-	m_lasterror = errno;
+	if (numbytes < 0)
+		m_lasterror = errno;
 #endif
 
 	return numbytes;
