@@ -28,6 +28,7 @@
 #include <iostream>
 #endif
 
+
 tuyaAPI34::tuyaAPI34()
 {
 	m_protocol = Protocol::v34;

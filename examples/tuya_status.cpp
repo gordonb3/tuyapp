@@ -74,8 +74,6 @@ bool get_device_by_name(const std::string name, std::string &id, std::string &ke
 }
 
 
-
-
 int main(int argc, char *argv[])
 {
 
@@ -114,10 +112,7 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
-	std::stringstream ss_payload;
-	long currenttime = time(NULL) ;
-	ss_payload << "{\"gwId\":\"" << device_id << "\",\"devId\":\"" << device_id << "\",\"uid\":\"" << device_id << "\",\"t\":\"" << currenttime << "\"}";
-	std::string payload = ss_payload.str();
+	std::string payload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
 
 	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
 

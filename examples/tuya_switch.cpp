@@ -121,11 +121,8 @@ int main(int argc, char *argv[])
 	if (argc > 3)
 		countdown = atoi(argv[3]);
 
-	std::stringstream ss_payload;
-	long currenttime = time(NULL) ;
-	ss_payload << "{\"gwId\":\"" << device_id << "\",\"devId\":\"" << device_id << "\",\"uid\":\"" << device_id << "\",\"t\":\"" << currenttime << "\"}";
-	std::string payload = ss_payload.str();
 
+	std::string payload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
 	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
 
 
@@ -166,33 +163,22 @@ int main(int argc, char *argv[])
 			error("ERROR fetching current switch state");
 	}
 
-	ss_payload.str(std::string());
+	// set up our datapoints json string
+	std::stringstream ss_dps;
+	ss_dps << "{\"1\":";
+	if (switchstate)
+		ss_dps << "true";
+	else
+		ss_dps << "false";
+	if (countdown)
+		ss_dps << ",\"9\":" << countdown;
+	ss_dps <<  "}";
 
 	// Protocol 3.4 uses different payload format
 	if (tuyaclient->getProtocol() == tuyaAPI::Protocol::v34)
-	{
-		ss_payload << "{\"protocol\":5,\"t\":" << currenttime << ",\"data\":{\"dps\":{\"1\":";
-		if (switchstate)
-			ss_payload << "true";
-		else
-			ss_payload << "false";
-		if (countdown)
-			ss_payload << ",\"9\":" << countdown;
-		ss_payload <<  "}}}";
-	}
+		payload = tuyaclient->GeneratePayload(TUYA_CONTROL_NEW, device_id, ss_dps.str());
 	else
-	{
-		// Protocol 3.3 and earlier use devId/uid format
-		ss_payload << "{\"devId\":\"" << device_id << "\",\"uid\":\"" << device_id << "\",\"dps\":{\"1\":";
-		if (switchstate)
-			ss_payload << "true";
-		else
-			ss_payload << "false";
-		if (countdown)
-			ss_payload << ",\"9\":" << countdown;
-		ss_payload <<  "},\"t\":\"" << currenttime << "\"}";
-	}
-	payload = ss_payload.str();
+		payload = tuyaclient->GeneratePayload(TUYA_CONTROL, device_id, ss_dps.str());
 
 #ifdef APPDEBUG
 	std::cout << "building switch payload: " << payload << "\n";

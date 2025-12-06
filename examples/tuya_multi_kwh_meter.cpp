@@ -28,7 +28,6 @@
 #include "tuyaAPI.hpp"
 #include <unistd.h>
 #include <iostream>
-#include <sstream>
 #include <string.h>
 #include <json/json.h>
 #include <cmath>
@@ -169,12 +168,8 @@ bool monitor(std::string devicename)
 		return false;
 	}
 
-	std::stringstream ss_payload;
-	long currenttime = time(NULL) ;
-	ss_payload << "{\"gwId\":\"" << device_id << "\",\"devId\":\"" << device_id << "\",\"uid\":\"" << device_id << "\",\"t\":\"" << currenttime << "\"}";
-	std::string payload = ss_payload.str();
-
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
+	std::string szPayload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
+	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, szPayload, device_key);
 
 	int numbytes;
 	numbytes = tuyaclient->send(message_buffer, payload_len);
@@ -212,16 +207,16 @@ bool monitor(std::string devicename)
 			std::cout << "Sending new request for updates\n";
 #endif			// send heart beat to keep connection alive
 			// received data => make new request for data point updates for switch state, power and voltage
-			payload = "{\"dpId\":[1,19,20]}";
-			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, payload, device_key);
+			szPayload = "{\"dpId\":[1,19,20]}";
+			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, szPayload, device_key);
 		}
 		else
 		{
 #ifdef APPDEBUG
 			std::cout << "Sending heart beat\n";
 #endif			// send heart beat to keep connection alive
-			payload = "{\"gwId\":\"" + device_id + "\",\"devId\":\"" + device_id + "\"}";
-			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_HEART_BEAT, payload, device_key);
+			szPayload = tuyaclient->GeneratePayload(TUYA_HEART_BEAT, device_id, "");
+			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_HEART_BEAT, szPayload, device_key);
 		}
 
 		numbytes = tuyaclient->send(message_buffer, payload_len);

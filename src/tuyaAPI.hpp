@@ -86,6 +86,7 @@ public:
 	// Get protocol version
 	Protocol getProtocol() const { return m_protocol; }
 
+	std::string GeneratePayload(const uint8_t command, const std::string &szDeviceID, const std::string &szDatapoints);
 	virtual int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) = 0;
 	virtual std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) = 0;
 
