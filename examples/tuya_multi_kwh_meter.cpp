@@ -169,12 +169,14 @@ bool monitor(std::string devicename)
 		return false;
 	}
 
+	tuyaclient->NegotiateSession(device_key);
+
 	std::stringstream ss_payload;
 	long currenttime = time(NULL) ;
 	ss_payload << "{\"gwId\":\"" << device_id << "\",\"devId\":\"" << device_id << "\",\"uid\":\"" << device_id << "\",\"t\":\"" << currenttime << "\"}";
 	std::string payload = ss_payload.str();
 
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
+	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload);
 
 	int numbytes;
 	numbytes = tuyaclient->send(message_buffer, payload_len);
@@ -190,7 +192,7 @@ bool monitor(std::string devicename)
 		return false;
 	}
 
-	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
+	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes);
 
 	unsigned long timeval;
 	float usage = 0;
@@ -213,7 +215,7 @@ bool monitor(std::string devicename)
 #endif			// send heart beat to keep connection alive
 			// received data => make new request for data point updates for switch state, power and voltage
 			payload = "{\"dpId\":[1,19,20]}";
-			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, payload, device_key);
+			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, payload);
 		}
 		else
 		{
@@ -221,14 +223,16 @@ bool monitor(std::string devicename)
 			std::cout << "Sending heart beat\n";
 #endif			// send heart beat to keep connection alive
 			payload = "{\"gwId\":\"" + device_id + "\",\"devId\":\"" + device_id + "\"}";
-			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_HEART_BEAT, payload, device_key);
+			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_HEART_BEAT, payload);
+
+
 		}
 
 		numbytes = tuyaclient->send(message_buffer, payload_len);
 		numbytes = ReadFromDevice(tuyaclient, message_buffer, 10);
 		if (numbytes > 0)
 		{
-			tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
+			tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes);
 
 			jReader->parse(tuyaresponse.c_str(), tuyaresponse.c_str() + tuyaresponse.size(), &jStatus, nullptr);
 			if (jStatus["dps"].isMember("1"))

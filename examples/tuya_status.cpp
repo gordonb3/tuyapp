@@ -114,12 +114,14 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
+	tuyaclient->NegotiateSession(device_key);
+
 	std::stringstream ss_payload;
 	long currenttime = time(NULL) ;
 	ss_payload << "{\"gwId\":\"" << device_id << "\",\"devId\":\"" << device_id << "\",\"uid\":\"" << device_id << "\",\"t\":\"" << currenttime << "\"}";
 	std::string payload = ss_payload.str();
 
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
+	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload);
 
 	int numbytes;
 	numbytes = tuyaclient->send(message_buffer, payload_len);
@@ -133,7 +135,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
+	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes);
 
 #ifdef APPDEBUG
 	std::cout << "dbg: raw answer: ";
