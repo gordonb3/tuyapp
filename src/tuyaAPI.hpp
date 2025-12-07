@@ -90,6 +90,9 @@ public:
 	virtual int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) = 0;
 	virtual std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) = 0;
 
+//	virtual unsigned long crc32(unsigned long crc, uint8_t const data[], uint32_t const len) { return 0;};
+
+
 protected:
 	Protocol m_protocol;
 };

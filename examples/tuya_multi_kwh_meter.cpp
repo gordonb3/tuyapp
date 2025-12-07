@@ -170,6 +170,11 @@ bool monitor(std::string devicename)
 
 	std::string szPayload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
 	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, szPayload, device_key);
+	if (payload_len < 0)
+	{
+		std::cout << "Error negotiating session, socket returned:"  << strerror(tuyaclient->getlasterror()) << " (" << tuyaclient->getlasterror() << ")\n";
+		exit(1);
+	}
 
 	int numbytes;
 	numbytes = tuyaclient->send(message_buffer, payload_len);
@@ -178,9 +183,9 @@ bool monitor(std::string devicename)
 	{
 		writeprotect.lock();
 		if (errno == 104)
-			std::cout << "Command rejected: Device in use (" << errno << ")\n";
+			std::cout << "Command rejected: Device in use (" << tuyaclient->getlasterror() << ")\n";
 		else
-			std::cout << "Error reading from socket: " << strerror(errno) << " (" << errno << ")\n";
+			std::cout << "Error reading from socket: " << strerror(tuyaclient->getlasterror()) << " (" << tuyaclient->getlasterror() << ")\n";
 		writeprotect.unlock();
 		return false;
 	}
@@ -197,6 +202,8 @@ bool monitor(std::string devicename)
 	timeval = jStatus["t"].asUInt64();
 	bool switchstate = jStatus["dps"]["1"].asBool();
 
+	tuyaresponse.insert(1,"\"name\":\"\",");
+	tuyaresponse.insert(9,devicename);
 	std::cout << tuyaresponse << "\n";
 
 	while (!StopRequested)

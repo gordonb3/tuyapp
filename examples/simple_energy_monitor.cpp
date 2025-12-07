@@ -9,6 +9,8 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
+#define DEVICE_VERSION "3.3"
+
 #define MAX_BUFFER_SIZE 1024
 
 #include "tuyaAPI33.hpp"
@@ -16,9 +18,6 @@
 #include <iostream>
 #include <sstream>
 #include <string.h>
-
-
-#include <zlib.h>
 
 
 void c_error(const char *msg)
@@ -32,25 +31,20 @@ int main(int argc, char *argv[])
 {
 	unsigned char message_buffer[MAX_BUFFER_SIZE];
 
-	tuyaAPI33 *tuyaclient;
-	tuyaclient = new tuyaAPI33();
-
 	if (argc < 3) {
 	   fprintf(stderr,"usage %s hostname tuya_id tuya_key\n", argv[0]);
 	   exit(0);
 	}
+
+	tuyaAPI *tuyaclient = tuyaAPI::create(DEVICE_VERSION);
 	if (!tuyaclient->ConnectToDevice(std::string(argv[1])))
 		c_error("ERROR connecting");
 
 	std::string device_id = std::string(argv[2]);
 	std::string device_key = std::string(argv[3]);
-	std::stringstream ss_payload;
-	long currenttime = time(NULL) ;
-	ss_payload << "{\"gwId\":\"" << device_id << "\",\"devId\":\"" << device_id << "\",\"uid\":\"" << device_id << "\",\"t\":\"" << currenttime << "\"}";
-	std::string payload = ss_payload.str();
 
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
-
+	std::string szPayload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
+	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, szPayload, device_key);
 
 	int numbytes = tuyaclient->send(message_buffer, payload_len);
 	if (numbytes < 0)
@@ -76,8 +70,8 @@ int main(int argc, char *argv[])
 	{
 		usleep(100000);
 
-		payload = "{\"dpId\":[1,19]}";
-		payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, payload, device_key);
+		szPayload = "{\"dpId\":[1,19]}";
+		payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, szPayload, device_key);
 		numbytes = tuyaclient->send(message_buffer, payload_len);
 		if (numbytes < 0)
 			c_error("ERROR writing to socket");

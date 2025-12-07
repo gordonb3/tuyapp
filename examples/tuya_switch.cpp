@@ -24,7 +24,6 @@
 #include <sstream>
 #include <string.h>
 #include <json/json.h>
-
 #include <fstream>
 
 
@@ -80,8 +79,6 @@ bool get_device_by_name(const std::string name, std::string &id, std::string &ke
 }
 
 
-
-
 int main(int argc, char *argv[])
 {
 
@@ -121,10 +118,13 @@ int main(int argc, char *argv[])
 	if (argc > 3)
 		countdown = atoi(argv[3]);
 
-
 	std::string payload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
 	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
-
+	if (payload_len < 0)
+	{
+		std::cout << "Error negotiating session, socket returned:"  << strerror(tuyaclient->getlasterror()) << " (" << tuyaclient->getlasterror() << ")\n";
+		exit(1);
+	}
 
 	int numbytes = tuyaclient->send(message_buffer, payload_len);
 	if (numbytes < 0)

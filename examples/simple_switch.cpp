@@ -9,6 +9,8 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
+#define DEVICE_VERSION "3.3"
+
 #define MAX_BUFFER_SIZE 1024
 
 #include "tuyaAPI33.hpp"
@@ -32,13 +34,13 @@ int main(int argc, char *argv[])
 
 	unsigned char message_buffer[MAX_BUFFER_SIZE];
 
-	tuyaAPI33 *tuyaclient;
-	tuyaclient = new tuyaAPI33();
 
 	if (argc < 5) {
 	   fprintf(stderr,"usage %s hostname tuya_id tuya_key on|off|toggle [countdown]\n", argv[0]);
 	   exit(0);
 	}
+
+	tuyaAPI *tuyaclient = tuyaAPI::create(DEVICE_VERSION);
 	if (!tuyaclient->ConnectToDevice(std::string(argv[1])))
 		c_error("ERROR connecting");
 

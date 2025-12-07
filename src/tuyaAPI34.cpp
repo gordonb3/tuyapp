@@ -19,8 +19,6 @@
 #include <cstring>
 #include <thread>
 #include <openssl/evp.h>
-#include <openssl/err.h>
-#include <openssl/ssl.h>
 #include <openssl/rand.h>
 #include <openssl/hmac.h>
 

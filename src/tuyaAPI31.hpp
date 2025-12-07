@@ -23,7 +23,7 @@ class tuyaAPI31 : public tuyaAPI
 {
 
 public:
-	tuyaAPI31() { m_protocol = Protocol::v31; }
+	tuyaAPI31();
 
 	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) override;
 	std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) override;
@@ -32,6 +32,7 @@ private:
 	int encode_base64( const unsigned char *input_str, int input_size, unsigned char *output_str);
 	std::string make_md5_digest(const std::string &str);
 
+	uint32_t m_seqno;
 };
 #endif // _tuyaAPI31
 

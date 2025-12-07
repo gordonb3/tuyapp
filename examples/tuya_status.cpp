@@ -23,10 +23,7 @@
 #include <sstream>
 #include <string.h>
 #include <json/json.h>
-
 #include <fstream>
-#include <thread>
-#include <chrono>
 
 
 bool get_device_by_name(const std::string name, std::string &id, std::string &key, std::string &address, std::string &version)
@@ -108,13 +105,17 @@ int main(int argc, char *argv[])
 
 	if (!tuyaclient->ConnectToDevice(device_address))
 	{
-		std::cout << "Error connecting to device: " << strerror(errno) << " (" << errno << ")\n";
+		std::cout << "Error connecting to device: " << strerror(tuyaclient->getlasterror()) << " (" << tuyaclient->getlasterror() << ")\n";
 		exit(0);
 	}
 
 	std::string payload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
-
 	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
+	if (payload_len < 0)
+	{
+		std::cout << "Error negotiating session, socket returned:"  << strerror(tuyaclient->getlasterror()) << " (" << tuyaclient->getlasterror() << ")\n";
+		exit(1);
+	}
 
 	int numbytes;
 	numbytes = tuyaclient->send(message_buffer, payload_len);
@@ -122,9 +123,9 @@ int main(int argc, char *argv[])
 	if (numbytes < 0)
 	{
 		if (errno == 104)
-			std::cout << "Command rejected: Device in use (" << errno << ")\n";
+			std::cout << "Command rejected: Device in use (" << tuyaclient->getlasterror() << ")\n";
 		else
-			std::cout << "Error reading from socket: " << strerror(errno) << " (" << errno << ")\n";
+			std::cout << "Error reading from socket: " << strerror(tuyaclient->getlasterror()) << " (" << tuyaclient->getlasterror() << ")\n";
 		exit(1);
 	}
 

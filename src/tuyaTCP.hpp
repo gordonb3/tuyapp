@@ -16,7 +16,7 @@
  *		Returns `size` on success or -1 if an error occurred
  *	 - receive(buffer[], maxsize, minsize)
  *		Fills `buffer` with the device's response. The additional `minsize`
- *		parameter (used in blocking mode only) defaults to 28 to skip
+ *		parameter (used in blocking mode only) defaults to 30 to skip
  *		processing of empty responses that are returned on state changing
  *		commands.
  *		Returns number of bytes received or -1 if an error occurred

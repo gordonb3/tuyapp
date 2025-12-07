@@ -16,7 +16,7 @@
  *		Returns `size` on success or -1 if an error occurred
  *	 - receive(buffer[], maxsize, minsize)
  *		Fills `buffer` with the device's response. The additional `minsize`
- *		parameter (used in blocking mode only) defaults to 28 to skip
+ *		parameter (used in blocking mode only) defaults to 30 to skip
  *		processing of empty responses that are returned on state changing
  *		commands.
  *		Returns number of bytes received or -1 if an error occurred
@@ -162,6 +162,7 @@ bool tuyaTCP::isConnected()
 	if (isSocketWritable())
 	{
 		m_socketState = Tuya::TCP::Socket::CONNECTED;
+		m_lasterror = 0;
 		return true;
 	}
 	return false;
@@ -229,6 +230,7 @@ bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
 	if (connect(m_sockfd, (const sockaddr*)&serv_addr, sizeof(serv_addr)) == 0)
 	{
 		m_socketState = Tuya::TCP::Socket::CONNECTED;
+		m_lasterror = 0;
 		return true;
 	}
 
@@ -295,7 +297,7 @@ int tuyaTCP::receive(unsigned char* buffer, const int maxsize, const int minsize
 #endif
 	if (m_socketState == Tuya::TCP::Socket::READY)
 	{
-		// you should not be trying to read in this socket state
+		// you need to send a command first before trying to read when in this socket state
 		return numbytes;
 	}
 	int timeout;
@@ -303,8 +305,7 @@ int tuyaTCP::receive(unsigned char* buffer, const int maxsize, const int minsize
 		timeout = 0;
 	else
 		timeout = SOCKET_RECEIVE_TIMEOUT_SECS * 1000;
-	bool getnext = true;
-	while ((numbytes <= minsize) && (getnext))
+	while (numbytes <= minsize)
 	{
 		if (getSocketEvents(POLLIN, timeout) == 0)
 		{
@@ -339,7 +340,7 @@ int tuyaTCP::receive(unsigned char* buffer, const int maxsize, const int minsize
 			continue;
 		}
 
-		getnext = false;
+		break;
 	}
 
 	return numbytes;

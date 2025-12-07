@@ -16,18 +16,22 @@
 #define MESSAGE_TRAILER_SIZE 8
 
 #include "tuyaAPI31.hpp"
-#include <zlib.h>
 #include <iomanip>
 #include <cstring>
-
 #include <openssl/evp.h>
-#include <openssl/err.h>
-#include <openssl/ssl.h>
-#include <openssl/evp.h>
+#include "crypt/crc32.hpp"
 
 #ifdef DEBUG
 #include <iostream>
 #endif
+
+
+tuyaAPI31::tuyaAPI31()
+{
+	m_protocol = Protocol::v31;
+	m_seqno = 0;
+}
+
 
 int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key = "")
 {
@@ -38,6 +42,14 @@ int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	buffer[1] = (MESSAGE_PREFIX & 0x00FF0000) >> 16;
 	buffer[2] = (MESSAGE_PREFIX & 0x0000FF00) >> 8;
 	buffer[3] = (MESSAGE_PREFIX & 0x000000FF);
+
+	// set message sequence number
+	m_seqno++;
+	buffer[4] = (m_seqno & 0xFF000000) >> 24;
+	buffer[5] = (m_seqno & 0x00FF0000) >> 16;
+	buffer[6] = (m_seqno & 0x0000FF00) >> 8;
+	buffer[7] = (m_seqno & 0x000000FF);
+
 	// set command code at int32 @buffer[8] (single byte value @buffer[11])
 	buffer[11] = command;
 	bufferpos += (int)PROTOCOL_31_HEADER_SIZE;
@@ -65,7 +77,6 @@ int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 			// encryption failure
 			return -1;
 		}
-
 
 		unsigned char cBase64Payload[200];
 		payloadSize = encode_base64( (unsigned char *)cEncryptedPayload, encryptedSize, &cBase64Payload[0]);

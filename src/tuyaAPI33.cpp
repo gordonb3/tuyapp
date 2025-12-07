@@ -17,11 +17,9 @@
 #define MESSAGE_TRAILER_SIZE 8
 
 #include "tuyaAPI33.hpp"
-#include <zlib.h>
 #include <cstring>
 #include <openssl/evp.h>
-#include <openssl/err.h>
-#include <openssl/ssl.h>
+#include "crypt/crc32.hpp"
 
 #ifdef DEBUG
 #include <iostream>
