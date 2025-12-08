@@ -106,7 +106,7 @@ public:
 	void setAsyncMode(bool async = true);
 	Tuya::TCP::Socket::value getSocketState();
 
-	virtual bool ConnectToDevice(const std::string &hostname, const uint8_t retries = 1);
+	virtual bool ConnectToDevice(const std::string &hostname);
 	int send(unsigned char* buffer, const int size);
 	int receive(unsigned char* buffer, const int maxsize, const int minsize = 30);
 	int getlasterror();
@@ -115,6 +115,11 @@ public:
 	bool isSocketWritable();
 	bool isSocketReadable();
 	bool setSessionReady();
+
+// legacy calls
+	virtual bool ConnectToDevice(const std::string &hostname, const int portnumber, const uint8_t retries) {return ConnectToDevice(hostname);};
+	virtual bool ConnectToDevice(const std::string &hostname, const uint8_t retries) {return ConnectToDevice(hostname);};
+
 
 protected:
 	Tuya::TCP::Socket::value m_socketState;

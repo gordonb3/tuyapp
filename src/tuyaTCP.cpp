@@ -169,7 +169,7 @@ bool tuyaTCP::isConnected()
 }
 
 
-bool tuyaTCP::ConnectToDevice(const std::string &hostname, uint8_t retries)
+bool tuyaTCP::ConnectToDevice(const std::string &hostname)
 {
 	struct sockaddr_in serv_addr;
 	bzero((char*)&serv_addr, sizeof(serv_addr));
@@ -304,7 +304,7 @@ int tuyaTCP::receive(unsigned char* buffer, const int maxsize, const int minsize
 	if (m_asyncMode)
 		timeout = 0;
 	else
-		timeout = SOCKET_RECEIVE_TIMEOUT_SECS * 1000;
+		timeout = SOCKET_RECEIVE_TIMEOUT_SECS;
 	while (numbytes <= minsize)
 	{
 		if (getSocketEvents(POLLIN, timeout) == 0)
