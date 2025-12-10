@@ -124,8 +124,9 @@ int main(int argc, char *argv[])
 	if (argc > 3)
 		countdown = atoi(argv[3]);
 
-	std::string payload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload);
+	uint8_t command = TUYA_DP_QUERY;
+	std::string payload = tuyaclient->GeneratePayload(command, device_id, "");
+	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, command, payload);
 
 	int numbytes = tuyaclient->send(message_buffer, payload_len);
 	if (numbytes < 0)
@@ -175,19 +176,15 @@ int main(int argc, char *argv[])
 		ss_dps << ",\"9\":" << countdown;
 	ss_dps <<  "}";
 
-	// Protocol 3.4 uses different payload format
-	if (tuyaclient->getProtocol() == tuyaAPI::Protocol::v34)
-		payload = tuyaclient->GeneratePayload(TUYA_CONTROL_NEW, device_id, ss_dps.str());
-	else
-		payload = tuyaclient->GeneratePayload(TUYA_CONTROL, device_id, ss_dps.str());
+	// GeneratePayload will automatically use the right command for the protocol
+	uint8_t control_command = TUYA_CONTROL;
+	payload = tuyaclient->GeneratePayload(control_command, device_id, ss_dps.str());
 
 #ifdef APPDEBUG
 	std::cout << "building switch payload: " << payload << "\n";
 #endif
 
-	payload_len = tuyaclient->BuildTuyaMessage(message_buffer,
-		(tuyaclient->getProtocol() == tuyaAPI::Protocol::v34) ? TUYA_CONTROL_NEW : TUYA_CONTROL,
-		payload, device_key);
+	payload_len = tuyaclient->BuildTuyaMessage(message_buffer, control_command, payload, device_key);
 
 #ifdef APPDEBUG
 		std::cout << "sending message: ";

@@ -91,7 +91,7 @@ bool tuyaAPI::NegotiateSession(const std::string &local_key)
 	return true;
 }
 
-std::string tuyaAPI::GeneratePayload(const uint8_t command, const std::string &szDeviceID, const std::string &szDatapoints)
+std::string tuyaAPI::GeneratePayload(uint8_t &command, const std::string &szDeviceID, const std::string &szDatapoints)
 {
 	std::string szPayload;
 	switch (command)

@@ -115,8 +115,9 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	std::string payload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload);
+	uint8_t command = TUYA_DP_QUERY;
+	std::string payload = tuyaclient->GeneratePayload(command, device_id, "");
+	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, command, payload);
 
 	int numbytes;
 	numbytes = tuyaclient->send(message_buffer, payload_len);

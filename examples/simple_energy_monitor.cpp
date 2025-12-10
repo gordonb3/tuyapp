@@ -46,8 +46,9 @@ int main(int argc, char *argv[])
 	if (!tuyaclient->NegotiateSession(device_key))
 		c_error("ERROR negotiating session");
 
-	std::string szPayload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, szPayload);
+	uint8_t command = TUYA_DP_QUERY;
+	std::string szPayload = tuyaclient->GeneratePayload(command, device_id, "");
+	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, command, szPayload);
 
 	int numbytes = tuyaclient->send(message_buffer, payload_len);
 	if (numbytes < 0)

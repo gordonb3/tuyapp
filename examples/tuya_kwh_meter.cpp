@@ -118,8 +118,9 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	std::string szPayload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, szPayload);
+	uint8_t command = TUYA_DP_QUERY;
+	std::string szPayload = tuyaclient->GeneratePayload(command, device_id, "");
+	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, command, szPayload);
 
 	int numbytes = tuyaclient->send(message_buffer, payload_len);
 	if (numbytes < 0)
@@ -170,8 +171,9 @@ int main(int argc, char *argv[])
 		else
 		{
 			// send heart beat to keep connection alive
-			szPayload = tuyaclient->GeneratePayload(TUYA_HEART_BEAT, device_id, "");
-			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_HEART_BEAT, szPayload);
+			uint8_t hb_command = TUYA_HEART_BEAT;
+			szPayload = tuyaclient->GeneratePayload(hb_command, device_id, "");
+			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, hb_command, szPayload);
 		}
 
 		numbytes = tuyaclient->send(message_buffer, payload_len);
