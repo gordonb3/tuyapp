@@ -43,6 +43,9 @@ private:
 	unsigned char m_remote_nonce[16];
 	uint32_t m_seqno;
 
+	int BuildMessage34(unsigned char *buffer, uint8_t command, const std::string &payload,
+	                   const unsigned char *key, int key_len);
+
 };
 #endif // _tuyaAPI34
 

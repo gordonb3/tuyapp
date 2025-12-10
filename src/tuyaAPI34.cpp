@@ -42,6 +42,61 @@ void tuyaAPI34::SetEncryptionKey(const std::string &key)
 	RAND_bytes(m_local_nonce, 16);
 }
 
+int tuyaAPI34::BuildMessage34(unsigned char *buffer, uint8_t command, const std::string &payload,
+                               const unsigned char *key, int key_len)
+{
+	int bufferpos = 0;
+	memset(buffer, 0, PROTOCOL_34_HEADER_SIZE);
+	buffer[0] = (MESSAGE_PREFIX & 0xFF000000) >> 24;
+	buffer[1] = (MESSAGE_PREFIX & 0x00FF0000) >> 16;
+	buffer[2] = (MESSAGE_PREFIX & 0x0000FF00) >> 8;
+	buffer[3] = (MESSAGE_PREFIX & 0x000000FF);
+	buffer[4] = (m_seqno & 0xFF000000) >> 24;
+	buffer[5] = (m_seqno & 0x00FF0000) >> 16;
+	buffer[6] = (m_seqno & 0x0000FF00) >> 8;
+	buffer[7] = (m_seqno & 0x000000FF);
+	buffer[11] = command;
+	bufferpos += (int)PROTOCOL_34_HEADER_SIZE;
+
+	unsigned char* cEncryptedPayload = &buffer[bufferpos];
+	int payloadSize = (int)payload.length();
+	memset(cEncryptedPayload, 0, payloadSize + 16);
+	int encryptedSize = 0;
+	int encryptedChars = 0;
+
+	try
+	{
+		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, key, nullptr);
+		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)payload.c_str(), payloadSize);
+		encryptedSize = encryptedChars;
+		EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
+		encryptedSize += encryptedChars;
+		EVP_CIPHER_CTX_free(ctx);
+	}
+	catch (const std::exception& e)
+	{
+		return -1;
+	}
+
+	bufferpos += encryptedSize;
+	unsigned char* cMessageTrailer = &buffer[bufferpos];
+
+	int buffersize = bufferpos + MESSAGE_TRAILER_SIZE;
+	buffer[14] = ((buffersize - PROTOCOL_34_HEADER_SIZE) & 0x0000FF00) >> 8;
+	buffer[15] = (buffersize - PROTOCOL_34_HEADER_SIZE) & 0x000000FF;
+
+	unsigned int hmac_len;
+	HMAC(EVP_sha256(), key, key_len, buffer, bufferpos, cMessageTrailer, &hmac_len);
+
+	cMessageTrailer[32] = (MESSAGE_SUFFIX & 0xFF000000) >> 24;
+	cMessageTrailer[33] = (MESSAGE_SUFFIX & 0x00FF0000) >> 16;
+	cMessageTrailer[34] = (MESSAGE_SUFFIX & 0x0000FF00) >> 8;
+	cMessageTrailer[35] = (MESSAGE_SUFFIX & 0x000000FF);
+
+	return buffersize;
+}
+
 int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key)
 {
 	if (!m_session_established)
@@ -58,68 +113,23 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 		payload.append(szPayload);
 	}
 
-	int bufferpos = 0;
-	memset(buffer, 0, PROTOCOL_34_HEADER_SIZE);
-	buffer[0] = (MESSAGE_PREFIX & 0xFF000000) >> 24;
-	buffer[1] = (MESSAGE_PREFIX & 0x00FF0000) >> 16;
-	buffer[2] = (MESSAGE_PREFIX & 0x0000FF00) >> 8;
-	buffer[3] = (MESSAGE_PREFIX & 0x000000FF);
-	buffer[4] = (m_seqno & 0xFF000000) >> 24;
-	buffer[5] = (m_seqno & 0x00FF0000) >> 16;
-	buffer[6] = (m_seqno & 0x0000FF00) >> 8;
-	buffer[7] = (m_seqno & 0x000000FF);
-	buffer[11] = command;
-	bufferpos += (int)PROTOCOL_34_HEADER_SIZE;
-
 #ifdef DEBUG
 	std::cout << "dbg: Payload to encrypt (" << payload.length() << " bytes): " << payload << "\n";
 #endif
 
-	unsigned char* cEncryptedPayload = &buffer[bufferpos];
-	int payloadSize = (int)payload.length();
-	memset(cEncryptedPayload, 0, payloadSize + 16);
-	int encryptedSize = 0;
-	int encryptedChars = 0;
-
-	try
-	{
-		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, m_session_key, nullptr);
-		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)payload.c_str(), payloadSize);
-		encryptedSize = encryptedChars;
-		EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
-		encryptedSize += encryptedChars;
-		EVP_CIPHER_CTX_free(ctx);
-	}
-	catch (const std::exception& e)
-	{
-		return -1;
-	}
-
-	bufferpos += encryptedSize;
-	unsigned char* cMessageTrailer = &buffer[bufferpos];
-
-	int buffersize = bufferpos + 36;  // 32 bytes HMAC + 4 bytes suffix
-	buffer[14] = ((buffersize - PROTOCOL_34_HEADER_SIZE) & 0x0000FF00) >> 8;
-	buffer[15] = (buffersize - PROTOCOL_34_HEADER_SIZE) & 0x000000FF;
-
-	// Calculate HMAC-SHA256 of header + encrypted payload
-	unsigned int hmac_len;
-	HMAC(EVP_sha256(), m_session_key, 16, buffer, bufferpos, cMessageTrailer, &hmac_len);
-
-	cMessageTrailer[32] = (MESSAGE_SUFFIX & 0xFF000000) >> 24;
-	cMessageTrailer[33] = (MESSAGE_SUFFIX & 0x00FF0000) >> 16;
-	cMessageTrailer[34] = (MESSAGE_SUFFIX & 0x0000FF00) >> 8;
-	cMessageTrailer[35] = (MESSAGE_SUFFIX & 0x000000FF);
+	int result = BuildMessage34(buffer, command, payload, m_session_key, 16);
 
 #ifdef DEBUG
-	std::cout << "dbg: normal message (size=" << buffersize << "): ";
-	for(int i=0; i<buffersize; ++i)
-		printf("%.2x", (uint8_t)buffer[i]);
-	std::cout << "\n";
+	if (result > 0)
+	{
+		std::cout << "dbg: normal message (size=" << result << "): ";
+		for(int i=0; i<result; ++i)
+			printf("%.2x", (uint8_t)buffer[i]);
+		std::cout << "\n";
+	}
 #endif
 
-	return buffersize;
+	return result;
 }
 
 
@@ -237,59 +247,8 @@ int tuyaAPI34::BuildSessionMessage(unsigned char *buffer)
 		return 0;
 	}
 
-	// Build the session message
-	int bufferpos = 0;
-	memset(buffer, 0, PROTOCOL_34_HEADER_SIZE);
-	buffer[0] = (MESSAGE_PREFIX & 0xFF000000) >> 24;
-	buffer[1] = (MESSAGE_PREFIX & 0x00FF0000) >> 16;
-	buffer[2] = (MESSAGE_PREFIX & 0x0000FF00) >> 8;
-	buffer[3] = (MESSAGE_PREFIX & 0x000000FF);
-	buffer[4] = (m_seqno & 0xFF000000) >> 24;
-	buffer[5] = (m_seqno & 0x00FF0000) >> 16;
-	buffer[6] = (m_seqno & 0x0000FF00) >> 8;
-	buffer[7] = (m_seqno & 0x000000FF);
-	buffer[11] = command;
-	bufferpos += (int)PROTOCOL_34_HEADER_SIZE;
-
-	unsigned char* cEncryptedPayload = &buffer[bufferpos];
-	int payloadSize = (int)payload.length();
-	memset(cEncryptedPayload, 0, payloadSize + 16);
-	int encryptedSize = 0;
-	int encryptedChars = 0;
-
-	try
-	{
-		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)m_device_key.c_str(), nullptr);
-		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)payload.c_str(), payloadSize);
-		encryptedSize = encryptedChars;
-		EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
-		encryptedSize += encryptedChars;
-		EVP_CIPHER_CTX_free(ctx);
-	}
-	catch (const std::exception& e)
-	{
-		return -1;
-	}
-
-	bufferpos += encryptedSize;
-	unsigned char* cMessageTrailer = &buffer[bufferpos];
-
-	int buffersize = bufferpos + MESSAGE_TRAILER_SIZE;
-	buffer[14] = ((buffersize - PROTOCOL_34_HEADER_SIZE) & 0x0000FF00) >> 8;
-	buffer[15] = (buffersize - PROTOCOL_34_HEADER_SIZE) & 0x000000FF;
-
-	// Calculate HMAC-SHA256
-	unsigned int hmac_len;
-	HMAC(EVP_sha256(), (unsigned char*)m_device_key.c_str(), m_device_key.length(),
-	     buffer, bufferpos, cMessageTrailer, &hmac_len);
-
-	cMessageTrailer[32] = (MESSAGE_SUFFIX & 0xFF000000) >> 24;
-	cMessageTrailer[33] = (MESSAGE_SUFFIX & 0x00FF0000) >> 16;
-	cMessageTrailer[34] = (MESSAGE_SUFFIX & 0x0000FF00) >> 8;
-	cMessageTrailer[35] = (MESSAGE_SUFFIX & 0x000000FF);
-
-	return buffersize;
+	return BuildMessage34(buffer, command, payload,
+	                      (unsigned char*)m_device_key.c_str(), m_device_key.length());
 }
 
 
