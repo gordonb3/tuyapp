@@ -21,10 +21,11 @@
 
 namespace Tuya {
   namespace Commands {
+    static const std::string HEART_BEAT = "{\"gwId\":\"@devid@\",\"devId\":\"@devid@\"}";
     static const std::string DP_QUERY = "{\"gwId\":\"@devid@\",\"devId\":\"@devid@\",\"uid\":\"@devid@\",\"t\":\"@now@\"}";
     static const std::string CONTROL = "{\"devId\":\"@devid@\",\"uid\":\"@devid@\",\"dps\":@dps@,\"t\":\"@now@\"}";
-    static const std::string CONTROL_NEW = "{\"protocol\":5,\"t\":@now@,\"data\":{\"dps\":@dps@}";
-    static const std::string HEART_BEAT = "{\"gwId\":\"@devid@\",\"devId\":\"@devid@\"}";
+    static const std::string DP_QUERY_NEW = "{\"devId\":\"@devid@\",\"uid\":\"@devid@\",\"t\":\"@now@\"}";
+    static const std::string CONTROL_NEW = "{\"protocol\":5,\"t\":@now@,\"data\":{\"dps\":@dps@}}";
     static const std::string UPDATEDPS = "";
   }; // namespace Commands
 }; // namespace Tuya
@@ -47,6 +48,11 @@ std::string tuyaAPI::GeneratePayload(const uint8_t command, const std::string &s
 	std::string szPayload;
 	switch (command)
 	{
+		case TUYA_HEART_BEAT:
+			szPayload = Tuya::Commands::HEART_BEAT;
+			szPayload.replace(28, 7, szDeviceID);
+			szPayload.replace(10, 7, szDeviceID);
+			break;
 		case TUYA_DP_QUERY:
 			szPayload = Tuya::Commands::DP_QUERY;
 			szPayload.replace(57, 5, std::to_string(time(NULL)));
@@ -61,19 +67,34 @@ std::string tuyaAPI::GeneratePayload(const uint8_t command, const std::string &s
 			szPayload.replace(26, 7, szDeviceID);
 			szPayload.replace(10, 7, szDeviceID);
 			break;
+		case TUYA_DP_QUERY_NEW:
+			szPayload = Tuya::Commands::DP_QUERY_NEW;
+			szPayload.replace(40, 5, std::to_string(time(NULL)));
+			szPayload.replace(26, 7, szDeviceID);
+			szPayload.replace(10, 7, szDeviceID);
+			break;
 		case TUYA_CONTROL_NEW:
 			szPayload = Tuya::Commands::CONTROL_NEW;
 			szPayload.replace(38, 5, szDatapoints);
 			szPayload.replace(18, 5, std::to_string(time(NULL)));
-			break;
-		case TUYA_HEART_BEAT:
-			szPayload = Tuya::Commands::HEART_BEAT;
-			szPayload.replace(28, 7, szDeviceID);
-			szPayload.replace(10, 7, szDeviceID);
 			break;
 		default:			
 			break;
 	}
 	return szPayload;
 }
+
+
+bool tuyaAPI::ConnectToDevice(const std::string &hostname)
+{
+	// Use base class connection
+	if (!tuyaTCP::ConnectToDevice(hostname))
+		return false;
+
+	// Protocol 3.4+ requires session negotiation
+	m_sessionState = Tuya::Session::INVALID;
+	m_seqno = 0;
+	return true;
+}
+
 

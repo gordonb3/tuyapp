@@ -350,6 +350,23 @@ int tuyaTCP::getlasterror()
 
 void tuyaTCP::disconnect()
 {
+	switch (m_socketState)
+	{
+		case Tuya::TCP::Socket::CONNECTING:
+		{
+			m_socketState = Tuya::TCP::Socket::FAILED;
+			break;
+		}
+		case Tuya::TCP::Socket::CONNECTED:
+		case Tuya::TCP::Socket::READY:
+		case Tuya::TCP::Socket::RECEIVING:
+		{
+			m_socketState = Tuya::TCP::Socket::DISCONNECTED;
+			break;
+		}
+		default:
+			break;
+	}
 	if (m_sockfd >= 0)
 		close(m_sockfd);
 	m_sockfd = -1;

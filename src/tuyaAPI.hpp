@@ -69,8 +69,20 @@
 #include <string>
 #include <cstdint>
 
-using namespace Tuya;
 
+namespace Tuya {
+  namespace Session {
+    enum value {
+      INVALID,
+      STARTING,
+      FINALIZING,
+      ESTABLISHED
+    }; // enum value
+  }; // namespace Session
+}; // namespace Tuya
+
+
+using namespace Tuya;
 class tuyaAPI : public tuyaTCP
 {
 public:
@@ -86,16 +98,26 @@ public:
 
 	// Get protocol version
 	Protocol getProtocol() const { return m_protocol; }
+	Tuya::Session::value getSessionState() const { return m_sessionState; }
 
 	std::string GeneratePayload(const uint8_t command, const std::string &szDeviceID, const std::string &szDatapoints);
 	virtual int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) = 0;
 	virtual std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) = 0;
 
-//	virtual unsigned long crc32(unsigned long crc, uint8_t const data[], uint32_t const len) { return 0;};
+	virtual bool NegotiateSessionStart(const std::string &szEncryptionKey) {m_sessionState = Tuya::Session::ESTABLISHED; return true;};
+	virtual bool NegotiateSessionFinalize(unsigned char *buffer, const int size, const std::string &szEncryptionKey) {return true;};
 
+	bool ConnectToDevice(const std::string &hostname) override;
+
+	// deprecated function - calls NegotiateSessionStart() and NegotiateSessionFinalize() in succession
+	virtual bool NegotiateSession(const std::string &szEncryptionKey) {return NegotiateSessionStart(szEncryptionKey);};
 
 protected:
 	Protocol m_protocol;
+	Tuya::Session::value m_sessionState;
+	uint32_t m_seqno;
+
+
 };
 
 #endif

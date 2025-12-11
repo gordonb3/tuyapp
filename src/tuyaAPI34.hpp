@@ -30,21 +30,22 @@ public:
  ************************************************************************/
 	tuyaAPI34();
 
-	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) override;
-	std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) override;
+	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &szEncryptionKey) override;
+	std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &szEncryptionKey) override;
 
-	bool ConnectToDevice(const std::string &hostname, const uint8_t retries = 5) override;
+	bool NegotiateSessionStart(const std::string &szEncryptionKey) override;
+	bool NegotiateSessionFinalize(unsigned char *buffer, const int size, const std::string &szEncryptionKey) override;
+
+	bool ConnectToDevice(const std::string &hostname) override;
+
+	// deprecated blocking mode only function - calls NegotiateSessionStart() and NegotiateSessionFinalize() in succession
+	bool NegotiateSession(const std::string &local_key);
 
 private:
 	unsigned char m_session_key[16];
 	unsigned char m_local_nonce[16];
 	unsigned char m_remote_nonce[16];
-	bool m_session_established;
 	uint32_t m_seqno;
-
-	bool NegotiateSession(const std::string &local_key);
-	int BuildSessionMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key);
-	std::string DecodeSessionMessage(unsigned char* buffer, const int size, const std::string &encryption_key);
 
 };
 #endif // _tuyaAPI34

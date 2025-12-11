@@ -17,6 +17,12 @@
 		 "key":"abcdef1234567890",
 		 "name":"tuya3",
 		 "version":"3.3"
+		},
+		{"address":"127.0.0.1",
+		 "id": "eb0123456789abcdefghij",
+		 "key": "thisisarealkey00",
+		 "name":"fake3.5",
+		 "version":"3.5"
 		}
 	]
 }
