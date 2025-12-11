@@ -87,15 +87,30 @@ public:
 	// Get protocol version
 	Protocol getProtocol() const { return m_protocol; }
 
+	virtual void SetEncryptionKey(const std::string &key) { m_device_key = key; }
+	bool NegotiateSession(const std::string &local_key);
+	bool isSessionEstablished() const { return m_session_established; }
+
 	std::string GeneratePayload(const uint8_t command, const std::string &szDeviceID, const std::string &szDatapoints);
-	virtual int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) = 0;
-	virtual std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) = 0;
+	virtual int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key = "") = 0;
+	virtual std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key = "") = 0;
+
+	virtual int BuildSessionMessage(unsigned char *buffer) { m_session_established = true; return 0; }
+	virtual std::string DecodeSessionMessage(unsigned char* buffer, const int size) { return ""; }
 
 //	virtual unsigned long crc32(unsigned long crc, uint8_t const data[], uint32_t const len) { return 0;};
 
+	// Crypto utility methods
+	int aes_128_ecb_encrypt(const unsigned char *key, const unsigned char *input, int input_len, unsigned char *output, int *output_len);
+	int aes_128_ecb_decrypt(const unsigned char *key, const unsigned char *input, int input_len, unsigned char *output, int *output_len);
+	void hmac_sha256(const unsigned char *key, int key_len, const unsigned char *data, int data_len, unsigned char *output);
+	void md5_hash(const unsigned char *data, int data_len, unsigned char *output);
+	void random_bytes(unsigned char *buffer, int len);
 
 protected:
 	Protocol m_protocol;
+	std::string m_device_key;
+	bool m_session_established;
 };
 
 #endif
