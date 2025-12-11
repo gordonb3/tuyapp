@@ -112,8 +112,14 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	if (!tuyaclient->NegotiateSession(device_key))
+	{
+		std::cout << "Error negotiating session\n";
+		exit(1);
+	}
+
 	std::string szPayload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, szPayload, device_key);
+	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, szPayload);
 
 	int numbytes = tuyaclient->send(message_buffer, payload_len);
 	if (numbytes < 0)
@@ -132,7 +138,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
+	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes);
 
 #ifdef APPDEBUG
 	std::cout << "dbg: raw answer: ";
@@ -159,13 +165,13 @@ int main(int argc, char *argv[])
 		{
 			// received data => make new request for data point updates for switch state, power and voltage
 			szPayload = "{\"dpId\":[1,19]}";
-			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, szPayload, device_key);
+			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, szPayload);
 		}
 		else
 		{
 			// send heart beat to keep connection alive
 			szPayload = tuyaclient->GeneratePayload(TUYA_HEART_BEAT, device_id, "");
-			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_HEART_BEAT, szPayload, device_key);
+			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_HEART_BEAT, szPayload);
 		}
 
 		numbytes = tuyaclient->send(message_buffer, payload_len);
