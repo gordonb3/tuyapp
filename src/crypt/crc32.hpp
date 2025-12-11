@@ -4,6 +4,7 @@
 
 #define Z_NULL 0
 
+namespace Tuya {
 
 static const uint32_t crc_table[256] = {
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
@@ -48,5 +49,7 @@ static unsigned long crc32(unsigned long crc, uint8_t const data[], uint32_t con
 		checksum = crc_table[(checksum ^ data[i]) & 0xff] ^ (checksum >> 8);
 	return checksum ^ 0xffffffff;
 };
+
+}; // namespace Tuya
 
 #endif

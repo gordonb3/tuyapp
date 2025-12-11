@@ -69,6 +69,7 @@
 #include <string>
 #include <cstdint>
 
+using namespace Tuya;
 
 class tuyaAPI : public tuyaTCP
 {
