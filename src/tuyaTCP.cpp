@@ -295,11 +295,6 @@ int tuyaTCP::receive(unsigned char* buffer, const int maxsize, const int minsize
 #else
 	m_lasterror = EAGAIN;
 #endif
-	if (m_socketState == Tuya::TCP::Socket::READY)
-	{
-		// you need to send a command first before trying to read when in this socket state
-		return numbytes;
-	}
 	int timeout;
 	if (m_asyncMode)
 		timeout = 0;
