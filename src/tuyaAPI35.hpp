@@ -9,17 +9,17 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
-// Tuya API 3.4 Class
+// Tuya API 3.5 Class
 
-#ifndef _tuyaAPI34
-#define _tuyaAPI34
+#ifndef _tuyaAPI35
+#define _tuyaAPI35
 
 #include "tuyaAPI.hpp"
 
 #include <string>
 #include <cstdint>
 
-class tuyaAPI34 : public tuyaAPI
+class tuyaAPI35 : public tuyaAPI
 {
 
 public:
@@ -28,7 +28,7 @@ public:
  *	Class construct							*
  *									*
  ************************************************************************/
-	tuyaAPI34();
+	tuyaAPI35();
 
 	void SetEncryptionKey(const std::string &key) override;
 	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key = "") override;
@@ -43,9 +43,8 @@ private:
 	unsigned char m_remote_nonce[16];
 	uint32_t m_seqno;
 
-	int BuildMessage34(unsigned char *buffer, uint8_t command, const std::string &payload,
-	                   const unsigned char *key, int key_len);
+	int BuildMessage35(unsigned char *buffer, uint32_t command, const std::string &payload,
+	                   const unsigned char *key, const unsigned char *iv);
 
 };
-#endif // _tuyaAPI34
-
+#endif // _tuyaAPI35
