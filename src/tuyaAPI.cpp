@@ -10,9 +10,15 @@
  */
 
 #include "tuyaAPI.hpp"
+#ifndef WITHOUT_API31
 #include "tuyaAPI31.hpp"
+#endif
+#ifndef WITHOUT_API33
 #include "tuyaAPI33.hpp"
+#endif
+#ifndef WITHOUT_API34
 #include "tuyaAPI34.hpp"
+#endif
 
 #include <cstring>
 #include <ctime>
@@ -33,12 +39,18 @@ namespace Tuya {
 
 tuyaAPI* tuyaAPI::create(const std::string &version)
 {
+#ifndef WITHOUT_API31
 	if (version == "3.1")
 		return new tuyaAPI31();
+#endif
+#ifndef WITHOUT_API33
 	if (version == "3.3")
 		return new tuyaAPI33();
+#endif
+#ifndef WITHOUT_API34
 	if (version == "3.4")
 		return new tuyaAPI34();
+#endif
 	return nullptr;
 }
 

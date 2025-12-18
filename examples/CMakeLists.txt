@@ -5,6 +5,11 @@ project(tuyapp)
 option(ENABLE_DEBUG "Enable library debugging" NO)
 option(ENABLE_APP_DEBUG "Enable application debugging" NO)
 
+option(WITHOUT_API31 "Disable API 3.1 support" YES)
+option(WITHOUT_API33 "Disable API 3.3 support" NO)
+option(WITHOUT_API34 "Disable API 3.4 support" NO)
+
+
 
 if(ENABLE_DEBUG)
     add_definitions(-DDEBUG)
@@ -12,6 +17,16 @@ endif()
 
 if(ENABLE_APP_DEBUG)
     add_definitions(-DAPPDEBUG)
+endif()
+
+if(WITHOUT_API31)
+    add_definitions(-DWITHOUT_API31)
+endif()
+if(WITHOUT_API33)
+    add_definitions(-DWITHOUT_API33)
+endif()
+if(WITHOUT_API34)
+    add_definitions(-DWITHOUT_API34)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")

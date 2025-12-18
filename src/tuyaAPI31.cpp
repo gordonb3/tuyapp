@@ -1,14 +1,21 @@
 /*
- *	Client interface for local Tuya device access
+ *  Client interface for local Tuya device access
  *
- *	Copyright 2022-2024 - gordonb3 https://github.com/gordonb3/tuyapp
+ *  API 3.1 module
  *
- *	Licensed under GNU General Public License 3.0 or later.
- *	Some rights reserved. See COPYING, AUTHORS.
+ *  Note: this module is likely disfunctional. Code includes AES encryption
+ *        for sending, but no decrypt routine for received messages.
  *
- *	@license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
+ *
+ *  Copyright 2022-2026 - gordonb3 https://github.com/gordonb3/tuyapp
+ *
+ *  Licensed under GNU General Public License 3.0 or later.
+ *  Some rights reserved. See COPYING, AUTHORS.
+ *
+ *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
+#ifndef WITHOUT_API31
 
 #define PROTOCOL_31_HEADER_SIZE 16
 #define MESSAGE_PREFIX 0x000055aa
@@ -257,5 +264,5 @@ std::string tuyaAPI31::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 	return ss.str();
 }
 
-
+#endif // WITHOUT_API31
 
