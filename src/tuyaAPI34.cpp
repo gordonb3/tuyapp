@@ -22,9 +22,12 @@
 #include "tuyaAPI34.hpp"
 #include <cstring>
 #include <thread>
-#include <openssl/evp.h>
-#include <openssl/rand.h>
-#include <openssl/hmac.h>
+
+#include "crypt/aes_128_ecb.hpp"
+#include "crypt/hmac_sha256.hpp"
+#include "crypt/rand.hpp"
+
+
 
 #ifdef DEBUG
 #include <iostream>
@@ -92,20 +95,9 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	int payloadSize = (int)payload.length();
 	memset(cEncryptedPayload, 0, payloadSize + 16);
 	int encryptedSize = 0;
-	int encryptedChars = 0;
-
-	try
+	if (!aes_128_ecb_encrypt(local_key, (unsigned char*)szPayload.c_str(), payloadSize, cEncryptedPayload, &encryptedSize))
 	{
-		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, local_key, nullptr);
-		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)payload.c_str(), payloadSize);
-		encryptedSize = encryptedChars;
-		EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
-		encryptedSize += encryptedChars;
-		EVP_CIPHER_CTX_free(ctx);
-	}
-	catch (const std::exception& e)
-	{
+		// encryption failure
 		return -1;
 	}
 
@@ -117,8 +109,7 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	buffer[15] = (buffersize - PROTOCOL_34_HEADER_SIZE) & 0x000000FF;
 
 	// Calculate HMAC-SHA256 of header + encrypted payload
-	unsigned int hmac_len;
-	HMAC(EVP_sha256(), local_key, 16, buffer, bufferpos, cMessageTrailer, &hmac_len);
+	hmac_sha256(local_key, 16, buffer, bufferpos, cMessageTrailer);
 
 	cMessageTrailer[32] = (MESSAGE_SUFFIX & 0xFF000000) >> 24;
 	cMessageTrailer[33] = (MESSAGE_SUFFIX & 0x00FF0000) >> 16;
@@ -174,8 +165,7 @@ std::string tuyaAPI34::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 			memcpy(hmac_sent, &cTuyaResponse[messageSize - MESSAGE_TRAILER_SIZE], 32);
 
 			unsigned char hmac_calc[32];
-			unsigned int hmac_len;
-			HMAC(EVP_sha256(), local_key, 16, cTuyaResponse, messageSize - MESSAGE_TRAILER_SIZE, hmac_calc, &hmac_len);
+			hmac_sha256(local_key, 16, cTuyaResponse, messageSize - MESSAGE_TRAILER_SIZE, hmac_calc);
 			if (memcmp(hmac_sent, hmac_calc, 32) != 0)
 			{
 				result.append("{\"msg\":\"hmac error\"}");
@@ -190,19 +180,9 @@ std::string tuyaAPI34::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 		unsigned char* cDecryptedPayload = new unsigned char[payloadSize + 16];
 		memset(cDecryptedPayload, 0, payloadSize + 16);
 		int decryptedSize = 0;
-		int decryptedChars = 0;
-
-		try
+		if (aes_128_ecb_decrypt(local_key, cEncryptedPayload, payloadSize, cDecryptedPayload, &decryptedSize))
 		{
-			EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-			EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, local_key, nullptr);
-			EVP_DecryptUpdate(ctx, cDecryptedPayload, &decryptedChars, cEncryptedPayload, payloadSize);
-			decryptedSize = decryptedChars;
-			EVP_DecryptFinal_ex(ctx, cDecryptedPayload + decryptedSize, &decryptedChars);
-			decryptedSize += decryptedChars;
-			EVP_CIPHER_CTX_free(ctx);
-
-			if (m_sessionState != Tuya::Session::ESTABLISHED)
+			if (m_sessionState == Tuya::Session::ESTABLISHED)
 			{
 				// Strip protocol version header (e.g., "3.4" followed by binary data)
 				// Look for the start of JSON data
@@ -222,10 +202,8 @@ std::string tuyaAPI34::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 				result.append((char*)cDecryptedPayload, decryptedSize);
 			}
 		}
-		catch (const std::exception& e)
-		{
+		else
 			result.append("{\"msg\":\"error decrypting payload\"}");
-		}
 
 		delete[] cDecryptedPayload;
 		bufferpos += messageSize;
@@ -256,7 +234,7 @@ bool tuyaAPI34::NegotiateSessionStart(const std::string &szEncryptionKey)
 	std::cout << "dbg: Starting session negotiation\n";
 #endif
 	unsigned char buffer[128];
-	RAND_bytes(m_local_nonce, 16);
+	random_bytes(m_local_nonce, 16);
 	m_seqno = 0;
 
 	uint8_t command = SESS_KEY_NEG_START;
@@ -309,9 +287,7 @@ bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *buffer, const int size, 
 
 	// Verify HMAC(szEncryptionKey, local_nonce) matches bytes 16-47
 	unsigned char hmac_check[32];
-	unsigned int hmac_check_len;
-	HMAC(EVP_sha256(), (unsigned char*)szEncryptionKey.c_str(), szEncryptionKey.length(),
-	     m_local_nonce, 16, hmac_check, &hmac_check_len);
+	hmac_sha256((unsigned char*)szEncryptionKey.c_str(), szEncryptionKey.length(), m_local_nonce, 16, hmac_check);
 
 	if (memcmp(hmac_check, (unsigned char*)response.c_str() + 16, 32) != 0)
 	{
@@ -364,9 +340,7 @@ bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *buffer, const int size, 
 
 	// Second session message: send HMAC of remote nonce
 	unsigned char rkey_hmac[32];
-	unsigned int hmac_len;
-	HMAC(EVP_sha256(), (unsigned char*)szEncryptionKey.c_str(), szEncryptionKey.length(),
-	     m_remote_nonce, 16, rkey_hmac, &hmac_len);
+	hmac_sha256((unsigned char*)szEncryptionKey.c_str(), szEncryptionKey.length(), m_remote_nonce, 16, rkey_hmac);
 
 	uint8_t command = SESS_KEY_NEG_FINISH;
 	std::string szPayload = std::string((char*)rkey_hmac, 32);
@@ -392,6 +366,7 @@ bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *buffer, const int size, 
 }
 
 
+// deprecated - only works when blocking mode communication is enabled
 bool tuyaAPI34::NegotiateSession(const std::string &szEncryptionKey)
 {
 	NegotiateSessionStart(szEncryptionKey);

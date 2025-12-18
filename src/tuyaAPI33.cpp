@@ -18,8 +18,8 @@
 
 #include "tuyaAPI33.hpp"
 #include <cstring>
-#include <openssl/evp.h>
 #include "crypt/crc32.hpp"
+#include "crypt/aes_128_ecb.hpp"
 
 #ifdef DEBUG
 #include <iostream>
@@ -33,7 +33,7 @@ tuyaAPI33::tuyaAPI33()
 }
 
 
-int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key)
+int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &szEncryptionKey)
 {
 	int bufferpos = 0;
 	memset(buffer, 0, PROTOCOL_33_HEADER_SIZE);
@@ -67,19 +67,7 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	int payloadSize = (int)szPayload.length();
 	memset(cEncryptedPayload, 0, payloadSize + 16);
 	int encryptedSize = 0;
-	int encryptedChars = 0;
-
-	try
-	{
-		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
-		EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)szPayload.c_str(), payloadSize);
-		encryptedSize = encryptedChars;
-		EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
-		encryptedSize += encryptedChars;
-		EVP_CIPHER_CTX_free(ctx);
-	}
-	catch (const std::exception& e)
+	if (!aes_128_ecb_encrypt((unsigned char*)szEncryptionKey.c_str(), (unsigned char*)szPayload.c_str(), payloadSize, cEncryptedPayload, &encryptedSize))
 	{
 		// encryption failure
 		return -1;
@@ -126,7 +114,7 @@ int tuyaAPI33::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 }
 
 
-std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key)
+std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &szEncryptionKey)
 {
 	std::string result;
 
@@ -167,23 +155,11 @@ std::string tuyaAPI33::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 			unsigned char* cDecryptedPayload = new unsigned char[payloadSize + 16];
 			memset(cDecryptedPayload, 0, payloadSize + 16);
 			int decryptedSize = 0;
-			int decryptedChars = 0;
-
-			try
-			{
-				EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-				EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
-				EVP_DecryptUpdate(ctx, cDecryptedPayload, &decryptedChars, cEncryptedPayload, payloadSize);
-				decryptedSize = decryptedChars;
-				EVP_DecryptFinal_ex(ctx, cDecryptedPayload + decryptedSize, &decryptedChars);
-				decryptedSize += decryptedChars;
-				EVP_CIPHER_CTX_free(ctx);
+			if (aes_128_ecb_decrypt((unsigned char*)szEncryptionKey.c_str(), cEncryptedPayload, payloadSize, cDecryptedPayload, &decryptedSize))
 				result.append((char*)cDecryptedPayload);
-			}
-			catch (const std::exception& e)
-			{
+			else
 				result.append("{\"msg\":\"error decrypting payload\"}");
-			}
+
 		}
 		else
 			result.append("{\"msg\":\"crc error\"}");

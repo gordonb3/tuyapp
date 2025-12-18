@@ -18,8 +18,9 @@
 #include "tuyaAPI31.hpp"
 #include <iomanip>
 #include <cstring>
-#include <openssl/evp.h>
 #include "crypt/crc32.hpp"
+#include "crypt/aes_128_ecb.hpp"
+#include "crypt/md5.hpp"
 
 #ifdef DEBUG
 #include <iostream>
@@ -33,7 +34,7 @@ tuyaAPI31::tuyaAPI31()
 }
 
 
-int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &encryption_key = "")
+int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &szEncryptionKey)
 {
 	int bufferpos = 0;
 	memset(buffer, 0, PROTOCOL_31_HEADER_SIZE);
@@ -55,24 +56,12 @@ int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	bufferpos += (int)PROTOCOL_31_HEADER_SIZE;
 
 	int payloadSize = (int)szPayload.length();
-	if (!encryption_key.empty())
+	if (!szEncryptionKey.empty())
 	{
 		unsigned char* cEncryptedPayload = &buffer[bufferpos];
 		memset(cEncryptedPayload, 0, payloadSize + 16);
 		int encryptedSize = 0;
-		int encryptedChars = 0;
-
-		try
-		{
-			EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-			EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)encryption_key.c_str(), nullptr);
-			EVP_EncryptUpdate(ctx, cEncryptedPayload, &encryptedChars, (unsigned char*)szPayload.c_str(), payloadSize);
-			encryptedSize = encryptedChars;
-			EVP_EncryptFinal_ex(ctx, cEncryptedPayload + encryptedChars, &encryptedChars);
-			encryptedSize += encryptedChars;
-			EVP_CIPHER_CTX_free(ctx);
-		}
-		catch (const std::exception& e)
+		if (!aes_128_ecb_encrypt((unsigned char*)szEncryptionKey.c_str(), (unsigned char*)szPayload.c_str(), payloadSize, cEncryptedPayload, &encryptedSize))
 		{
 			// encryption failure
 			return -1;
@@ -85,7 +74,7 @@ int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 		std::string premd5 = "data=";
 		premd5.append((char *)cBase64Payload);
 		premd5.append("||lpv=3.1||");
-		premd5.append(encryption_key);
+		premd5.append(szEncryptionKey);
 		std::string md5str = make_md5_digest(premd5);
 		std::string md5mid = (char *)&md5str[8];
 		std::string header = "3.1";
@@ -143,7 +132,7 @@ int tuyaAPI31::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 }
 
 
-std::string tuyaAPI31::DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key)
+std::string tuyaAPI31::DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &szEncryptionKey)
 {
 	std::string result;
 
@@ -258,20 +247,11 @@ std::string tuyaAPI31::DecodeTuyaMessage(unsigned char* buffer, const int size, 
 
 /* private */ std::string tuyaAPI31::make_md5_digest(const std::string &str)
 {
-	unsigned char *hash;
-	unsigned int hash_len = EVP_MD_size(EVP_md5());
-	EVP_MD_CTX *md5ctx;
-
-	md5ctx = EVP_MD_CTX_new();
-	EVP_DigestInit_ex(md5ctx, EVP_md5(), NULL);
-	EVP_DigestUpdate(md5ctx, str.c_str(), str.size());
-	hash = (unsigned char *)OPENSSL_malloc(hash_len);
-	EVP_DigestFinal_ex(md5ctx, hash, &hash_len);
-	EVP_MD_CTX_free(md5ctx);
+	unsigned char hash[16];
+	md5_hash((unsigned char*)str.c_str(), str.size(), hash);
 
 	std::stringstream ss;
-
-	for(unsigned int i = 0; i < hash_len; i++){
+	for(unsigned int i = 0; i < 16; i++){
 		ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>( hash[i] );
 	}
 	return ss.str();
