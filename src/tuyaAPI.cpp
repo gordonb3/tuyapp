@@ -19,6 +19,9 @@
 #ifndef WITHOUT_API34
 #include "tuyaAPI34.hpp"
 #endif
+#ifndef WITHOUT_API35
+#include "tuyaAPI35.hpp"
+#endif
 
 #include <cstring>
 #include <ctime>
@@ -50,6 +53,10 @@ tuyaAPI* tuyaAPI::create(const std::string &version)
 #ifndef WITHOUT_API34
 	if (version == "3.4")
 		return new tuyaAPI34();
+#endif
+#ifndef WITHOUT_API35
+	if (version == "3.5")
+		return new tuyaAPI35();
 #endif
 	return nullptr;
 }

@@ -1,7 +1,7 @@
 /*
  *  Client interface for local Tuya device access
  *
- *  API 3.3 module
+ *  API 3.4 module
  *
  *
  *  Copyright 2022-2026 - gordonb3 https://github.com/gordonb3/tuyapp
@@ -33,7 +33,6 @@
 #include "crypt/rand.hpp"
 
 
-
 #ifdef DEBUG
 #include <iostream>
 #endif
@@ -47,7 +46,7 @@ tuyaAPI34::tuyaAPI34()
 }
 
 
-int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &szPayload, const std::string &szEncryptionKey)
+int tuyaAPI34::BuildTuyaMessage(unsigned char *cMessageBuffer, const uint8_t command, const std::string &szPayload, const std::string &szEncryptionKey)
 {
 	if (m_sessionState != Tuya::Session::ESTABLISHED)
 	{
@@ -80,23 +79,23 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	}
 
 	int bufferpos = 0;
-	memset(buffer, 0, PROTOCOL_34_HEADER_SIZE);
-	buffer[0] = (MESSAGE_PREFIX & 0xFF000000) >> 24;
-	buffer[1] = (MESSAGE_PREFIX & 0x00FF0000) >> 16;
-	buffer[2] = (MESSAGE_PREFIX & 0x0000FF00) >> 8;
-	buffer[3] = (MESSAGE_PREFIX & 0x000000FF);
-	buffer[4] = (m_seqno & 0xFF000000) >> 24;
-	buffer[5] = (m_seqno & 0x00FF0000) >> 16;
-	buffer[6] = (m_seqno & 0x0000FF00) >> 8;
-	buffer[7] = (m_seqno & 0x000000FF);
-	buffer[11] = command;
+	memset(cMessageBuffer, 0, PROTOCOL_34_HEADER_SIZE);
+	cMessageBuffer[0] = (MESSAGE_PREFIX & 0xFF000000) >> 24;
+	cMessageBuffer[1] = (MESSAGE_PREFIX & 0x00FF0000) >> 16;
+	cMessageBuffer[2] = (MESSAGE_PREFIX & 0x0000FF00) >> 8;
+	cMessageBuffer[3] = (MESSAGE_PREFIX & 0x000000FF);
+	cMessageBuffer[4] = (m_seqno & 0xFF000000) >> 24;
+	cMessageBuffer[5] = (m_seqno & 0x00FF0000) >> 16;
+	cMessageBuffer[6] = (m_seqno & 0x0000FF00) >> 8;
+	cMessageBuffer[7] = (m_seqno & 0x000000FF);
+	cMessageBuffer[11] = command;
 	bufferpos += (int)PROTOCOL_34_HEADER_SIZE;
 
 #ifdef DEBUG
 	std::cout << "dbg: Payload to encrypt (" << payload.length() << " bytes): " << payload << "\n";
 #endif
 
-	unsigned char* cEncryptedPayload = &buffer[bufferpos];
+	unsigned char* cEncryptedPayload = &cMessageBuffer[bufferpos];
 	int payloadSize = (int)payload.length();
 	memset(cEncryptedPayload, 0, payloadSize + 16);
 	int encryptedSize = 0;
@@ -107,14 +106,14 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 	}
 
 	bufferpos += encryptedSize;
-	unsigned char* cMessageTrailer = &buffer[bufferpos];
+	unsigned char* cMessageTrailer = &cMessageBuffer[bufferpos];
 
 	int buffersize = bufferpos + MESSAGE_TRAILER_SIZE;
-	buffer[14] = ((buffersize - PROTOCOL_34_HEADER_SIZE) & 0x0000FF00) >> 8;
-	buffer[15] = (buffersize - PROTOCOL_34_HEADER_SIZE) & 0x000000FF;
+	cMessageBuffer[14] = ((buffersize - PROTOCOL_34_HEADER_SIZE) & 0x0000FF00) >> 8;
+	cMessageBuffer[15] = (buffersize - PROTOCOL_34_HEADER_SIZE) & 0x000000FF;
 
 	// Calculate HMAC-SHA256 of header + encrypted payload
-	hmac_sha256(local_key, 16, buffer, bufferpos, cMessageTrailer);
+	hmac_sha256(local_key, 16, cMessageBuffer, bufferpos, cMessageTrailer);
 
 	cMessageTrailer[32] = (MESSAGE_SUFFIX & 0xFF000000) >> 24;
 	cMessageTrailer[33] = (MESSAGE_SUFFIX & 0x00FF0000) >> 16;
@@ -124,7 +123,7 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 #ifdef DEBUG
 	std::cout << "dbg: normal message (size=" << buffersize << "): ";
 	for(int i=0; i<buffersize; ++i)
-		printf("%.2x", (uint8_t)buffer[i]);
+		printf("%.2x", (uint8_t)cMessageBuffer[i]);
 	std::cout << "\n";
 #endif
 
@@ -132,24 +131,20 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *buffer, const uint8_t command, co
 }
 
 
-std::string tuyaAPI34::DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &szEncryptionKey)
+std::string tuyaAPI34::DecodeTuyaMessage(unsigned char* cMessageBuffer, const int buffersize, const std::string &szEncryptionKey)
 {
 	unsigned char local_key[16];
 	if (m_sessionState != Tuya::Session::ESTABLISHED)
-	{
 		memcpy(&local_key, szEncryptionKey.c_str(), 16);
-	}
 	else
-	{
 		memcpy(&local_key, m_session_key, 16);
-	}
 
 	std::string result;
 	int bufferpos = 0;
 
-	while (bufferpos < size)
+	while (bufferpos < buffersize)
 	{
-		unsigned char* cTuyaResponse = &buffer[bufferpos];
+		unsigned char* cTuyaResponse = &cMessageBuffer[bufferpos];
 		int messageSize = (int)((uint8_t)cTuyaResponse[15] + ((uint8_t)cTuyaResponse[14] << 8) + PROTOCOL_34_HEADER_SIZE);
 
 		if (m_sessionState != Tuya::Session::ESTABLISHED)
@@ -238,13 +233,13 @@ bool tuyaAPI34::NegotiateSessionStart(const std::string &szEncryptionKey)
 #ifdef DEBUG
 	std::cout << "dbg: Starting session negotiation\n";
 #endif
-	unsigned char buffer[128];
+	unsigned char cMessageBuffer[128];
 	random_bytes(m_local_nonce, 16);
 	m_seqno = 0;
 
 	uint8_t command = SESS_KEY_NEG_START;
 	std::string szPayload = std::string((char*)m_local_nonce, 16);
-	int msgSize = BuildTuyaMessage(buffer, command, szPayload, szEncryptionKey);
+	int msgSize = BuildTuyaMessage(cMessageBuffer, command, szPayload, szEncryptionKey);
 	if (msgSize < 0)
 	{
 #ifdef DEBUG
@@ -254,7 +249,7 @@ bool tuyaAPI34::NegotiateSessionStart(const std::string &szEncryptionKey)
 		return false;
 	}
 
-	if (send(buffer, msgSize) < 0)
+	if (send(cMessageBuffer, msgSize) < 0)
 	{
 #ifdef DEBUG
 		std::cout << "dbg: Failed to send session message 1\n";
@@ -266,11 +261,11 @@ bool tuyaAPI34::NegotiateSessionStart(const std::string &szEncryptionKey)
 }
 
 
-bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *buffer, const int size, const std::string &szEncryptionKey)
+bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *cMessageBuffer, const int buffersize, const std::string &szEncryptionKey)
 {
 	m_sessionState = Tuya::Session::FINALIZING;
 
-	std::string response = DecodeTuyaMessage(buffer, size, szEncryptionKey);
+	std::string response = DecodeTuyaMessage(cMessageBuffer, buffersize, szEncryptionKey);
 	if (response.length() < 48)
 	{
 #ifdef DEBUG
@@ -282,7 +277,7 @@ bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *buffer, const int size, 
 
 #ifdef DEBUG
 	std::cout << "dbg: Decrypted response (" << response.length() << " bytes): ";
-	for(size_t i=0; i<response.length() && i<48; ++i)
+	for(size_t i = 0; i < response.length() && i < 48; ++i)
 		printf("%.2x", (unsigned char)response[i]);
 	std::cout << "\n";
 #endif
@@ -349,8 +344,8 @@ bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *buffer, const int size, 
 
 	uint8_t command = SESS_KEY_NEG_FINISH;
 	std::string szPayload = std::string((char*)rkey_hmac, 32);
-	int msgSize = BuildTuyaMessage(buffer, command, szPayload, szEncryptionKey);
-	if (msgSize < 0 || send(buffer, msgSize) < 0)
+	int msgSize = BuildTuyaMessage(cMessageBuffer, command, szPayload, szEncryptionKey);
+	if (msgSize < 0 || send(cMessageBuffer, msgSize) < 0)
 	{
 #ifdef DEBUG
 		std::cout << "dbg: Failed to send session message 2\n";
@@ -375,8 +370,8 @@ bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *buffer, const int size, 
 bool tuyaAPI34::NegotiateSession(const std::string &szEncryptionKey)
 {
 	NegotiateSessionStart(szEncryptionKey);
-	unsigned char buffer[1024];
-	int recvSize = receive(buffer, sizeof(buffer), 0);
+	unsigned char cMessageBuffer[1024];
+	int recvSize = receive(cMessageBuffer, sizeof(cMessageBuffer), 0);
 	if (recvSize < 0)
 	{
 #ifdef DEBUG
@@ -389,15 +384,15 @@ bool tuyaAPI34::NegotiateSession(const std::string &szEncryptionKey)
 	std::cout << "dbg: Received " << recvSize << " bytes\n";
 #endif
 
-	bool result = NegotiateSessionFinalize(buffer, recvSize, szEncryptionKey);
+	bool result = NegotiateSessionFinalize(cMessageBuffer, recvSize, szEncryptionKey);
 
 #ifdef DEBUG
 	// There appears to be no response from the device to indicate either pass or success
 	// Keep this block to run further investigation
-	recvSize = receive(buffer, sizeof(buffer), 0);
+	recvSize = receive(cMessageBuffer, sizeof(cMessageBuffer), 0);
 	std::cout << "got response : ";
-		for(int i=0; i<recvSize; ++i)
-			printf("%.2x", (uint8_t)buffer[i]);
+	for(int i = 0; i < recvSize; ++i)
+		printf("%.2x", (uint8_t)cMessageBuffer[i]);
 	std::cout << "\n";
 #endif
 	return result;

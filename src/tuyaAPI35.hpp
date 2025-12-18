@@ -1,10 +1,7 @@
 /*
  *  Client interface for local Tuya device access
  *
- *  API 3.4 module
- *
- *
- *  Copyright 2022-2026 - gordonb3 https://github.com/gordonb3/tuyapp
+ *  Copyright 2022-2024 - gordonb3 https://github.com/gordonb3/tuyapp
  *
  *  Licensed under GNU General Public License 3.0 or later.
  *  Some rights reserved. See COPYING, AUTHORS.
@@ -12,15 +9,17 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
-#ifndef _tuyaAPI34
-#define _tuyaAPI34
+// Tuya API 3.5 Class
+
+#ifndef _tuyaAPI35
+#define _tuyaAPI35
 
 #include "tuyaAPI.hpp"
 
 #include <string>
 #include <cstdint>
 
-class tuyaAPI34 : public tuyaAPI
+class tuyaAPI35 : public tuyaAPI
 {
 
 public:
@@ -29,18 +28,17 @@ public:
  *	Class construct							*
  *									*
  ************************************************************************/
-	tuyaAPI34();
+	tuyaAPI35();
 
-	int BuildTuyaMessage(unsigned char *cMessageBuffer, const uint8_t command, const std::string &szPayload, const std::string &szEncryptionKey) override;
-	std::string DecodeTuyaMessage(unsigned char *cMessageBuffer, const int buffersize, const std::string &encryption_key) override;
+	int BuildTuyaMessage(unsigned char *cMessageBuffer, const uint8_t command, const std::string &payload, const std::string &szEncryptionKey) override;
+	std::string DecodeTuyaMessage(unsigned char *cMessageBuffer, const int size, const std::string &encryption_key) override;
 
 	bool NegotiateSessionStart(const std::string &szEncryptionKey) override;
 	bool NegotiateSessionFinalize(unsigned char *cMessageBuffer, const int buffersize, const std::string &szEncryptionKey) override;
 
-	bool ConnectToDevice(const std::string &hostname) override;
-
 	// deprecated blocking mode only function - calls NegotiateSessionStart() and NegotiateSessionFinalize() in succession
-	bool NegotiateSession(const std::string &local_key);
+	bool NegotiateSession(const std::string &local_key) override;
+
 
 private:
 	unsigned char m_session_key[16];
@@ -49,5 +47,5 @@ private:
 	uint32_t m_seqno;
 
 };
-#endif // _tuyaAPI34
 
+#endif // _tuyaAPI35

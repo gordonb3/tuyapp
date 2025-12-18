@@ -89,23 +89,23 @@ public:
 	enum class Protocol {
 		v31,
 		v33,
-		v34
+		v34,
+		v35
 	};
 
 	virtual ~tuyaAPI() {}
 
 	static tuyaAPI* create(const std::string &version);
 
-	// Get protocol version
 	Protocol getProtocol() const { return m_protocol; }
 	Tuya::Session::value getSessionState() const { return m_sessionState; }
 
 	std::string GeneratePayload(const uint8_t command, const std::string &szDeviceID, const std::string &szDatapoints);
-	virtual int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) = 0;
-	virtual std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) = 0;
+	virtual int BuildTuyaMessage(unsigned char *cMessageBuffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) = 0;
+	virtual std::string DecodeTuyaMessage(unsigned char *cMessageBuffer, const int buffersize, const std::string &encryption_key) = 0;
 
 	virtual bool NegotiateSessionStart(const std::string &szEncryptionKey) {m_sessionState = Tuya::Session::ESTABLISHED; return true;};
-	virtual bool NegotiateSessionFinalize(unsigned char *buffer, const int size, const std::string &szEncryptionKey) {return true;};
+	virtual bool NegotiateSessionFinalize(unsigned char *cMessageBuffer, const int size, const std::string &szEncryptionKey) {return true;};
 
 	bool ConnectToDevice(const std::string &hostname) override;
 
@@ -116,7 +116,6 @@ protected:
 	Protocol m_protocol;
 	Tuya::Session::value m_sessionState;
 	uint32_t m_seqno;
-
 
 };
 

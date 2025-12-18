@@ -29,8 +29,8 @@ class tuyaAPI31 : public tuyaAPI
 public:
 	tuyaAPI31();
 
-	int BuildTuyaMessage(unsigned char *buffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) override;
-	std::string DecodeTuyaMessage(unsigned char* buffer, const int size, const std::string &encryption_key) override;
+	int BuildTuyaMessage(unsigned char *cMessageBuffer, const uint8_t command, const std::string &payload, const std::string &encryption_key) override;
+	std::string DecodeTuyaMessage(unsigned char *cMessageBuffer, const int buffersize, const std::string &encryption_key) override;
 
 private:
 	int encode_base64( const unsigned char *input_str, int input_size, unsigned char *output_str);
