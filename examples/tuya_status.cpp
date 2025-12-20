@@ -109,8 +109,24 @@ int main(int argc, char *argv[])
 		exit(0);
 	}
 
-	std::string payload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
-	int payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
+	if (!tuyaclient->NegotiateSession(device_key))
+	{
+		std::cout << "Error negotiating session, socket returned:"  << strerror(tuyaclient->getlasterror()) << " (" << tuyaclient->getlasterror() << ")\n";
+		exit(1);
+	}
+
+	std::string payload;
+	int payload_len;
+	if (tuyaclient->getProtocol() >= tuyaAPI::Protocol::v35)
+	{
+		payload = tuyaclient->GeneratePayload(TUYA_DP_QUERY_NEW, device_id, "");
+		payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY_NEW, payload, device_key);
+	}
+	else
+	{
+		payload = tuyaclient->GeneratePayload(TUYA_DP_QUERY, device_id, "");
+		payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_DP_QUERY, payload, device_key);
+	}
 	if (payload_len < 0)
 	{
 		std::cout << "Error negotiating session, socket returned:"  << strerror(tuyaclient->getlasterror()) << " (" << tuyaclient->getlasterror() << ")\n";
@@ -132,7 +148,7 @@ int main(int argc, char *argv[])
 	std::string tuyaresponse = tuyaclient->DecodeTuyaMessage(message_buffer, numbytes, device_key);
 
 #ifdef APPDEBUG
-	std::cout << "dbg: raw answer: ";
+	std::cout << "dbg: raw answer (size = " << numbytes << "): ";
 	for(int i=0; i<numbytes; ++i)
 		printf("%.2x", (uint8_t)message_buffer[i]);
 	std::cout << "\n";

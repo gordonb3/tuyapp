@@ -88,6 +88,12 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *cMessageBuffer, const uint8_t com
 	cMessageBuffer[5] = (m_seqno & 0x00FF0000) >> 16;
 	cMessageBuffer[6] = (m_seqno & 0x0000FF00) >> 8;
 	cMessageBuffer[7] = (m_seqno & 0x000000FF);
+/*
+	// command is only an 8 bit int and we already initialized the higher bits to 0
+	cMessageBuffer[8] = (command & 0xFF000000) >> 24;
+	cMessageBuffer[9] = (command & 0x00FF0000) >> 16;
+	cMessageBuffer[10] = (command & 0x0000FF00) >> 8;
+*/
 	cMessageBuffer[11] = command;
 	bufferpos += (int)PROTOCOL_34_HEADER_SIZE;
 
@@ -122,7 +128,7 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *cMessageBuffer, const uint8_t com
 
 #ifdef DEBUG
 	std::cout << "dbg: normal message (size=" << buffersize << "): ";
-	for(int i=0; i<buffersize; ++i)
+	for(int i = 0; i < buffersize; ++i)
 		printf("%.2x", (uint8_t)cMessageBuffer[i]);
 	std::cout << "\n";
 #endif
@@ -269,18 +275,11 @@ bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *cMessageBuffer, const in
 	if (response.length() < 48)
 	{
 #ifdef DEBUG
-		std::cout << "dbg: Response too short: " << response.length() << " bytes\n";
+		std::cout << "dbg: Decode of session negotiation response failed!\n";
 #endif
 		m_sessionState = Tuya::Session::INVALID;
 		return false;
 	}
-
-#ifdef DEBUG
-	std::cout << "dbg: Decrypted response (" << response.length() << " bytes): ";
-	for(size_t i = 0; i < response.length() && i < 48; ++i)
-		printf("%.2x", (unsigned char)response[i]);
-	std::cout << "\n";
-#endif
 
 	// Extract remote_nonce (first 16 bytes) - it's ASCII hex string, use it directly
 	memcpy(m_remote_nonce, response.c_str(), 16);
@@ -294,9 +293,11 @@ bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *cMessageBuffer, const in
 #ifdef DEBUG
 		std::cout << "dbg: HMAC verification failed!\n";
 		std::cout << "dbg: Expected: ";
-		for(int i=0; i<32; ++i) printf("%.2x", hmac_check[i]);
+		for(int i = 0; i < 32; ++i)
+			printf("%.2x", hmac_check[i]);
 		std::cout << "\ndbg: Got: ";
-		for(int i=0; i<32; ++i) printf("%.2x", (unsigned char)response[16+i]);
+		for(int i = 0; i < 32; ++i)
+			printf("%.2x", (unsigned char)response[16+i]);
 		std::cout << "\n";
 #endif
 		m_sessionState = Tuya::Session::INVALID;
@@ -306,7 +307,8 @@ bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *cMessageBuffer, const in
 #ifdef DEBUG
 	std::cout << "dbg: HMAC verification passed\n";
 	std::cout << "dbg: remote_nonce: ";
-	for(int i=0; i<16; ++i) printf("%.2x", m_remote_nonce[i]);
+	for(int i = 0; i < 16; ++i)
+		printf("%.2x", m_remote_nonce[i]);
 	std::cout << "\n";
 #endif
 
@@ -315,17 +317,8 @@ bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *cMessageBuffer, const in
 	for (int i = 0; i < 16; i++)
 		xor_nonce[i] = m_local_nonce[i] ^ m_remote_nonce[i];
 
-	// Encrypt XOR'd nonce with szEncryptionKey using ECB to get session key
-	try
-	{
-		EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-		int outlen;
-		EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), nullptr, (unsigned char*)szEncryptionKey.c_str(), nullptr);
-		EVP_EncryptUpdate(ctx, m_session_key, &outlen, xor_nonce, 16);
-		EVP_EncryptFinal_ex(ctx, m_session_key + outlen, &outlen);
-		EVP_CIPHER_CTX_free(ctx);
-	}
-	catch (const std::exception& e)
+	int outlen;
+	if (!aes_128_ecb_encrypt((unsigned char*)szEncryptionKey.c_str(), xor_nonce, 16, m_session_key, &outlen))
 	{
 		m_sessionState = Tuya::Session::INVALID;
 		return false;
@@ -333,7 +326,7 @@ bool tuyaAPI34::NegotiateSessionFinalize(unsigned char *cMessageBuffer, const in
 
 #ifdef DEBUG
 	std::cout << "dbg: Session key: ";
-	for(int i=0; i<16; ++i)
+	for(int i = 0; i < 16; ++i)
 		printf("%.2x", (uint8_t)m_session_key[i]);
 	std::cout << "\n";
 #endif

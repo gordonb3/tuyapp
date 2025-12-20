@@ -85,7 +85,6 @@ int tuyaAPI35::BuildTuyaMessage(unsigned char *cMessageBuffer, const uint8_t com
 	cMessageBuffer[7] = (m_seqno & 0x00FF0000) >> 16;
 	cMessageBuffer[8] = (m_seqno & 0x0000FF00) >> 8;
 	cMessageBuffer[9] = (m_seqno & 0x000000FF);
-
 /*
 	// command is only an 8 bit int and we already initialized the higher bits to 0
 	cMessageBuffer[10] = (command & 0xFF000000) >> 24;
@@ -150,7 +149,7 @@ int tuyaAPI35::BuildTuyaMessage(unsigned char *cMessageBuffer, const uint8_t com
 
 #ifdef DEBUG
 	std::cout << "dbg: normal message (size=" << buffersize << "): ";
-	for(int i=0; i<buffersize; ++i)
+	for(int i = 0; i < buffersize; ++i)
 		printf("%.2x", (uint8_t)cMessageBuffer[i]);
 	std::cout << "\n";
 #endif
@@ -288,7 +287,7 @@ bool tuyaAPI35::NegotiateSessionFinalize(unsigned char *cMessageBuffer, const in
 	if (response.length() < 48)
 	{
 #ifdef DEBUG
-		std::cout << "dbg: Response too short: " << response.length() << " bytes\n";
+		std::cout << "dbg: Decode of session negotiation response failed!\n";
 #endif
 		return false;
 	}
@@ -337,11 +336,11 @@ bool tuyaAPI35::NegotiateSessionFinalize(unsigned char *cMessageBuffer, const in
 #ifdef DEBUG
 	std::cout << "dbg: HMAC verification passed\n";
 	std::cout << "dbg: remote_nonce: ";
-	for(int i=0; i<16; ++i)
+	for(int i = 0; i < 16; ++i)
 		printf("%.2x", m_remote_nonce[i]);
 	std::cout << "\n";
 	std::cout << "dbg: Session key: ";
-	for(int i=0; i<16; ++i)
+	for(int i = 0; i < 16; ++i)
 		printf("%.2x", (uint8_t)m_session_key[i]);
 	std::cout << "\n";
 #endif
@@ -394,7 +393,7 @@ bool tuyaAPI35::NegotiateSession(const std::string &szEncryptionKey)
 	// Keep this block to run further investigation
 	recvSize = receive(cMessageBuffer, sizeof(cMessageBuffer), 0);
 	std::cout << "got response : ";
-	for(int i=0; i<recvSize; ++i)
+	for(int i = 0; i < recvSize; ++i)
 		printf("%.2x", (uint8_t)cMessageBuffer[i]);
 	std::cout << "\n";
 #endif

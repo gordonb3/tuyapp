@@ -12,16 +12,43 @@
  *  @license GPL-3.0+ <https://github.com/gordonb3/tuyapp/blob/master/LICENSE>
  */
 
+#ifndef USE_MBEDTLS
+
+// select default encryption routines
+#define USE_OPENSSL
+
+#endif
+
 
 namespace Tuya {
 
+#ifdef USE_OPENSSL
+
 #include <openssl/hmac.h>
 
-static void hmac_sha256(const unsigned char *key, int key_len, const unsigned char *data, int data_len, unsigned char *output)
+static void hmac_sha256(const unsigned char *cEncryptionKey, int keySize, const unsigned char *cInputBuffer, int inputSize, unsigned char *cOutputBuffer)
 {
 	unsigned int len;
-	HMAC(EVP_sha256(), key, key_len, data, data_len, output, &len);
+	HMAC(EVP_sha256(), cEncryptionKey, keySize, cInputBuffer, inputSize, cOutputBuffer, &len);
 }
+
+
+#endif // USE_OPENSSL
+
+
+
+#ifdef USE_MBEDTLS
+
+#include <mbedtls/md.h>
+
+static void hmac_sha256(const unsigned char *cEncryptionKey, int keySize, const unsigned char *cInputBuffer, int inputSize, unsigned char *cOutputBuffer)
+{
+	const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+	mbedtls_md_hmac(md_info, cEncryptionKey, keySize, cInputBuffer, inputSize, cOutputBuffer);
+
+}
+
+#endif // USE_MBEDTLS
 
 }; // namespace Tuya
 

@@ -146,11 +146,9 @@ void SendCommand(char cmd)
 
 	if (cmd == 'i')
 	{
-/*
 		if (m_tuyaclient->getProtocol() >= tuyaAPI::Protocol::v35)
 			command = TUYA_DP_QUERY_NEW;
 		else
-*/
 			command = TUYA_DP_QUERY;
 		std::string szPayload = m_tuyaclient->GeneratePayload(command, m_szDeviceID, "");
 		int payload_len = m_tuyaclient->BuildTuyaMessage(cMessageBuffer, command, szPayload, m_szDeviceKey);

@@ -212,7 +212,7 @@ bool monitor(std::string devicename)
 		{
 #ifdef APPDEBUG
 			std::cout << "Sending new request for updates\n";
-#endif			// send heart beat to keep connection alive
+#endif
 			// received data => make new request for data point updates for switch state, power and voltage
 			szPayload = "{\"dpId\":[1,19,20]}";
 			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_UPDATEDPS, szPayload, device_key);
@@ -221,7 +221,8 @@ bool monitor(std::string devicename)
 		{
 #ifdef APPDEBUG
 			std::cout << "Sending heart beat\n";
-#endif			// send heart beat to keep connection alive
+#endif
+			// send heart beat to keep connection alive
 			szPayload = tuyaclient->GeneratePayload(TUYA_HEART_BEAT, device_id, "");
 			payload_len = tuyaclient->BuildTuyaMessage(message_buffer, TUYA_HEART_BEAT, szPayload, device_key);
 		}
@@ -315,6 +316,7 @@ int main(int argc, char *argv[])
 	std::cout << "Press Enter to quit\n";
 	char c;
 	std::cin.get(c);
+	std::cout << "keyboard input: " << c << "\n";
 	StopRequested = true;
 
 	for (auto &t1 : monitorthreads)
