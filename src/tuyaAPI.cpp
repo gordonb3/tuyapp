@@ -69,8 +69,8 @@ std::string tuyaAPI::GeneratePayload(const uint8_t command, const std::string &s
 	{
 		case TUYA_HEART_BEAT:
 			szPayload = Tuya::Commands::HEART_BEAT;
-			szPayload.replace(28, 7, szDeviceID);
-			szPayload.replace(10, 7, szDeviceID);
+			szPayload.replace(27, 7, szDeviceID);
+			szPayload.replace(9,  7, szDeviceID);
 			break;
 		case TUYA_DP_QUERY:
 			szPayload = Tuya::Commands::DP_QUERY;
