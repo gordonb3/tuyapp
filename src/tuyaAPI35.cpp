@@ -41,6 +41,7 @@
 tuyaAPI35::tuyaAPI35()
 {
 	m_protocol = Protocol::v35;
+	m_sessionState = Tuya::Session::INVALID;
 	m_seqno = 0;
 	random_bytes(m_local_nonce, 16);
 }
