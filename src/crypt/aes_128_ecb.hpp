@@ -21,12 +21,21 @@
 #endif
 
 
+#ifdef USE_OPENSSL
+// must be included in global namespace
+#include <openssl/evp.h>
+#endif
+
+#ifdef USE_MBEDTLS
+// must be included in global namespace
+#include "mbedtls/aes.h"
+#endif
+
+
 namespace Tuya {
 
 #ifdef USE_OPENSSL
 
-
-#include <openssl/evp.h>
 
 static bool aes_128_ecb_encrypt(const unsigned char *cEncryptionKey, const unsigned char *cInputBuffer, int inputSize, unsigned char *cOutputBuffer, int *outputSize)
 {
@@ -85,8 +94,6 @@ static bool aes_128_ecb_decrypt(const unsigned char *cEncryptionKey, const unsig
 
 
 #ifdef USE_MBEDTLS
-
-#include "mbedtls/aes.h"
 
 static bool aes_128_ecb_encrypt(const unsigned char *cEncryptionKey, const unsigned char *cInputBuffer, int inputSize, unsigned char *cOutputBuffer, int *outputSize)
 {

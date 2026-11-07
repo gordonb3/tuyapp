@@ -21,11 +21,20 @@
 #endif
 
 
+#ifdef USE_OPENSSL
+// must be included in global namespace
+#include <openssl/evp.h>
+#endif
+
+#ifdef USE_MBEDTLS
+// must be included in global namespace
+#include "mbedtls/gcm.h"
+#endif
+
+
 namespace Tuya {
 
 #ifdef USE_OPENSSL
-
-#include <openssl/evp.h>
 static bool aes_128_gcm_encrypt(const unsigned char *cEncryptionKey, const unsigned char *iv, int iv_len, const unsigned char *aad, int aad_len, const unsigned char *cInputBuffer, int inputSize, unsigned char *cOutputBuffer, int *outputSize, unsigned char *tag, int tag_len)
 {
 	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
@@ -94,8 +103,6 @@ static bool aes_128_gcm_decrypt(const unsigned char *cEncryptionKey, const unsig
 #endif // USE_OPENSSL
 
 #ifdef USE_MBEDTLS
-
-#include "mbedtls/gcm.h"
 
 static bool aes_128_gcm_encrypt(const unsigned char *cEncryptionKey, const unsigned char *iv, int iv_len, const unsigned char *aad, int aad_len, const unsigned char *cInputBuffer, int inputSize, unsigned char *cOutputBuffer, int *outputSize, unsigned char *tag, int tag_len)
 {

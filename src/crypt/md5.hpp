@@ -19,11 +19,20 @@
 
 #endif
 
+#ifdef USE_OPENSSL
+// must be included in global namespace
+#include <openssl/evp.h>
+#endif
+
+#ifdef USE_MBEDTLS
+// must be included in global namespace
+#include <mbedtls/md.h>
+#endif
+
+
 namespace Tuya {
 
 #ifdef USE_OPENSSL
-
-#include <openssl/evp.h>
 
 static void md5_hash(const unsigned char *cInputBuffer, int inputSize, unsigned char *cOutputBuffer)
 {
@@ -41,8 +50,6 @@ static void md5_hash(const unsigned char *cInputBuffer, int inputSize, unsigned 
 
 
 #ifdef USE_MBEDTLS
-
-#include <mbedtls/md.h>
 
 static void md5_hash(const unsigned char *cInputBuffer, int inputSize, unsigned char *cOutputBuffer)
 {

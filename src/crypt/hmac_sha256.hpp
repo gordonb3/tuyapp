@@ -20,11 +20,20 @@
 #endif
 
 
+#ifdef USE_OPENSSL
+// must be included in global namespace
+#include <openssl/hmac.h>
+#endif
+
+#ifdef USE_MBEDTLS
+// must be included in global namespace
+#include <mbedtls/md.h>
+#endif
+
+
 namespace Tuya {
 
 #ifdef USE_OPENSSL
-
-#include <openssl/hmac.h>
 
 static void hmac_sha256(const unsigned char *cEncryptionKey, int keySize, const unsigned char *cInputBuffer, int inputSize, unsigned char *cOutputBuffer)
 {
@@ -38,8 +47,6 @@ static void hmac_sha256(const unsigned char *cEncryptionKey, int keySize, const 
 
 
 #ifdef USE_MBEDTLS
-
-#include <mbedtls/md.h>
 
 static void hmac_sha256(const unsigned char *cEncryptionKey, int keySize, const unsigned char *cInputBuffer, int inputSize, unsigned char *cOutputBuffer)
 {
