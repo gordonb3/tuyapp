@@ -105,7 +105,7 @@ int tuyaAPI34::BuildTuyaMessage(unsigned char *cMessageBuffer, const uint8_t com
 	int payloadSize = (int)payload.length();
 	memset(cEncryptedPayload, 0, payloadSize + 16);
 	int encryptedSize = 0;
-	if (!aes_128_ecb_encrypt(local_key, (unsigned char*)szPayload.c_str(), payloadSize, cEncryptedPayload, &encryptedSize))
+	if (!aes_128_ecb_encrypt(local_key, (unsigned char*)payload.c_str(), payloadSize, cEncryptedPayload, &encryptedSize))
 	{
 		// encryption failure
 		return -1;
