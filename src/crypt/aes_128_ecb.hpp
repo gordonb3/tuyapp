@@ -104,7 +104,7 @@ static bool aes_128_ecb_encrypt(const unsigned char *cEncryptionKey, const unsig
 	*outputSize = 0;
 	for (int i = 0; i < (paddedInputSize >> 4); ++i)
 	{
-		mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_ENCRYPT, cInputBuffer + (i << 4), &cOutputBuffer[(i << 4)]);
+		mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_ENCRYPT, cPaddedInput + (i << 4), &cOutputBuffer[(i << 4)]);
 		*outputSize += 16;
 	}
 	mbedtls_aes_free(&aes);
@@ -118,6 +118,7 @@ static bool aes_128_ecb_decrypt(const unsigned char *cEncryptionKey, const unsig
 	mbedtls_aes_context aes;
 	mbedtls_aes_init(&aes);
 	mbedtls_aes_setkey_dec(&aes, cEncryptionKey, 128);
+	*outputSize = 0;
 	for (int i = 0; i < (inputSize >> 4); ++i)
 	{
 		mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_DECRYPT, cInputBuffer + (i << 4), cOutputBuffer + (i << 4));
